@@ -1,0 +1,2691 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>კარადების კონსტრუქტორი და დაჭრის ოპტიმიზატორი</title>
+<style>
+  :root {
+    --bg: #f4f2ee; --panel: #ffffff; --ink: #1f2428; --muted: #6b7278;
+    --line: #dcd8d0; --accent: #b4541a; --accent-ink: #ffffff; --waste: #e9e5dd; --bad: #8c1d13;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.45 "Segoe UI", "BPG Arial", "Noto Sans Georgian", Sylfaen, sans-serif; }
+  header { padding: 18px 24px 0; }
+  h1 { margin: 0; font-size: 22px; }
+  header p { margin: 4px 0 0; color: var(--muted); }
+  .tabs { display: flex; gap: 6px; margin-top: 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .tabs button { border: 1px solid transparent; border-bottom: none; border-radius: 8px 8px 0 0; background: transparent; padding: 9px 18px;
+    font-weight: 600; color: var(--muted); margin-bottom: -1px; }
+  .tabs button.on { background: var(--panel); border-color: var(--line); color: var(--accent); }
+  .badge { display: inline-block; min-width: 20px; padding: 0 6px; border-radius: 10px; background: var(--accent); color: #fff; font-size: 12px; text-align: center; }
+  .layout { display: grid; grid-template-columns: minmax(380px, 620px) 1fr; gap: 20px; padding: 16px 24px 40px; align-items: start; }
+  .page { padding: 16px 24px 40px; max-width: 1100px; }
+  @media (max-width: 1040px) { .layout { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  h2 { margin: 0 0 12px; font-size: 16px; }
+  h4 { margin: 14px 0 6px; font-size: 14px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px 12px; }
+  label { display: block; font-size: 12.5px; color: var(--muted); }
+  input[type=text], input[type=number], label select, td select.full { width: 100%; padding: 7px 8px; margin-top: 3px; border: 1px solid var(--line);
+    border-radius: 6px; font: inherit; color: var(--ink); background: #fff; }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  select { padding: 6px 2px; border: 1px solid var(--line); border-radius: 6px; font: inherit; background: #fff; color: var(--ink); }
+  table { width: 100%; border-collapse: collapse; }
+  th { font-size: 12px; font-weight: 600; color: var(--muted); text-align: left; padding: 0 4px 6px; }
+  td { padding: 2px 3px; }
+  td input, td select.full { margin-top: 0 !important; }
+  td.c { text-align: center; }
+  .w-num { width: 82px; } .w-qty { width: 60px; } .w-x { width: 30px; } .w-mat { width: 130px; }
+  .big-table .w-num { width: 130px; }
+  button { font: inherit; cursor: pointer; border-radius: 7px; border: 1px solid var(--line); background: #fff; color: var(--ink); padding: 8px 14px; }
+  button:hover { border-color: var(--accent); }
+  button:disabled { opacity: .55; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; padding: 10px 20px; }
+  button.del { padding: 3px 8px; color: var(--muted); border-color: transparent; }
+  button.del:hover { color: #c0281c; }
+  button.preset { padding: 6px 10px; font-size: 13.5px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
+  .hint { font-size: 12.5px; color: var(--muted); margin: 10px 0 0; }
+  .chk { display: flex; align-items: center; gap: 6px; color: var(--ink); font-size: 13px; }
+  .error { background: #fdecea; border: 1px solid #f0b4ad; color: var(--bad); padding: 10px 12px; border-radius: 8px; margin-bottom: 16px; white-space: pre-line; }
+
+  .cab { border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin-top: 10px; background: #fcfbf8; }
+  .cab-head { display: flex; gap: 8px; align-items: center; }
+  .cab-head input[type=text] { flex: 1; font-weight: 600; margin: 0; }
+  .cab-head label { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .cab-head input[type=number] { width: 62px; margin: 0; }
+  .cab-body { display: flex; gap: 12px; margin-top: 8px; align-items: flex-start; }
+  .prev { width: 96px; flex: none; }
+  .prev svg { width: 100%; height: auto; max-height: 150px; display: block; }
+  .cab-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 10px; flex: 1; }
+  .cab-grid .wide { grid-column: span 2; }
+  .cab-grid .sep { grid-column: 1 / -1; font-size: 12.5px; font-weight: 600; color: var(--ink); margin: 4px 0 -4px; }
+  .sep2 { font-size: 13px; font-weight: 600; margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--line); }
+  .ed { display: flex; gap: 14px; margin-top: 8px; align-items: flex-start; }
+  .ed .prev { width: 230px; }
+  .ed .prev svg { max-height: 330px; user-select: none; }
+  .ed-panel { flex: 1; min-width: 0; }
+  .ed-panel .sep { font-size: 12.5px; font-weight: 600; }
+  @media (max-width: 560px) { .ed { flex-direction: column; } }
+  .cab-info { font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+  .cab-info.bad { color: var(--bad); }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .stat b { display: block; font-size: 26px; line-height: 1.15; font-variant-numeric: tabular-nums; }
+  .stat.big b { color: var(--accent); font-size: 28px; white-space: nowrap; }
+  .stat span { font-size: 12.5px; color: var(--muted); }
+  .sheet h3 { margin: 0 0 8px; font-size: 15px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .sheet h3 small { font-weight: 400; color: var(--muted); }
+  .sheet.isstock { border-color: #9cc7ab; background: #fafdfb; }
+  .sheet svg { width: 100%; max-width: 680px; height: auto; display: block; border: 1px solid #8a8580; background: var(--waste); }
+  .empty { color: var(--muted); padding: 40px 10px; text-align: center; }
+  .tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 8px; padding: 8px 10px;
+    background: #fdf3ea; border: 1px solid #ecc9ae; border-radius: 8px; font-size: 13.5px; }
+  .tools select { padding: 7px 6px; }
+  .tools span { margin-right: auto; }
+  .sheet.dragging { position: relative; z-index: 5; }
+  .sheet.dragging svg { overflow: visible; }
+  .piece { cursor: grab; touch-action: none; }
+  .piece:active { cursor: grabbing; }
+  svg text { pointer-events: none; user-select: none; }
+  .tbl th, .tbl td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; font-variant-numeric: tabular-nums; }
+  .tbl th.r, .tbl td.r { text-align: right; }
+  .tbl tr.total td { font-weight: 700; border-bottom: none; font-size: 16px; }
+  summary { cursor: pointer; }
+  summary h2 { display: inline; }
+  #testout { margin: 20px; padding: 12px; background: #fff; border: 1px solid var(--line); white-space: pre-wrap; font: 12px/1.4 Consolas, monospace; }
+  [hidden] { display: none !important; }
+  /* project report (PDF) */
+  #report { display: none; }
+  body.report { background: #fff; }
+  body.report > *:not(#report) { display: none !important; }
+  body.report #report { display: block; max-width: 800px; margin: 0 auto; padding: 16px 20px 40px; }
+  #report h1 { font-size: 22px; margin: 0 0 2px; }
+  #report h2 { font-size: 15px; margin: 20px 0 10px; padding-bottom: 4px; border-bottom: 1.5px solid #555; break-after: avoid; }
+  #report h3 { font-size: 14px; margin: 0 0 4px; break-after: avoid; }
+  #report h3 small { font-weight: 400; color: var(--muted); }
+  .rp-meta { font-size: 12px; color: var(--muted); margin: 4px 0 8px; }
+  .rp-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 10px 12px; margin-bottom: 16px; background: #fdf3ea; border: 1px solid #ecc9ae; border-radius: 8px; }
+  .rp-cab { display: flex; gap: 18px; align-items: flex-start; margin-bottom: 18px; break-inside: avoid; }
+  .rp-draw { width: 290px; flex: none; }
+  .rp-draw svg { width: 100%; height: auto; max-height: 380px; display: block; }
+  .rp-info { flex: 1; min-width: 0; }
+  #report .tbl th, #report .tbl td { padding: 3px 6px; font-size: 12.5px; }
+  #report .tbl th { border-bottom: 1px solid #777; }
+  #report .tbl tr.total td { font-size: 14px; }
+  .rp-block { break-inside: avoid; }
+  .rp-sheet { margin-bottom: 14px; break-inside: avoid; }
+  .rp-sheet svg { width: 100%; height: auto; display: block; border: 1px solid #777; background: var(--waste); }
+  @page { size: A4; margin: 12mm; }
+  @media print {
+    body { background: #fff; }
+    .inputs, header p, .noprint, .tabs, #tab-mats, #tab-stock { display: none !important; }
+    .layout { display: block; padding: 0 8px; }
+    .panel, .stat { border-color: #999; }
+    .sheet { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>კარადების კონსტრუქტორი და დაჭრის ოპტიმიზატორი</h1>
+  <p>მასალები შეიყვანეთ „მასალები“ ჩანართში, დარჩენილი ნაჭრები — „ნაშთი“ ჩანართში, კარადები ააწყვეთ „კონსტრუქტორში“. ყველა ზომა მმ-შია.</p>
+  <nav class="tabs" id="tabs">
+    <button data-tab="build" class="on">კონსტრუქტორი</button>
+    <button data-tab="mats">მასალები</button>
+    <button data-tab="stock">ნაშთი <span class="badge" id="stockCount">0</span></button>
+  </nav>
+</header>
+
+<!-- ============================ constructor ============================ -->
+<div class="layout" id="tab-build">
+  <div class="inputs">
+    <div class="panel">
+      <h2>1. კარადები</h2>
+      <p class="hint" style="margin-top:0">აირჩიეთ ვარიანტი დასამატებლად, შემდეგ შეცვალეთ ზომები, თაროები, კარები, უჯრები და მასალები:</p>
+      <div class="row" id="presets" style="margin-top:8px"></div>
+      <div id="cabs"></div>
+    </div>
+
+    <div class="panel">
+      <h2>2. დაჭრის პარამეტრები</h2>
+      <div class="grid2">
+        <label title="ღრეჩო კარებს / უჯრის ფასადებს შორის და კარადის კიდეებთან. 0 — ფასადი კარადის სრული ზომისაა">ფასადის ღრეჩო, მმ (0 = ღრეჩოს გარეშე) <input type="number" id="gap" min="0" step="0.5"></label>
+        <label>ჭრილის სისქე (ხერხი / ფრეზი), მმ <input type="number" id="kerf" min="0" step="0.1"></label>
+        <label>ახალი ფირფიტის კიდის ჩამოჭრა, მმ <input type="number" id="trim" min="0" step="0.1"></label>
+        <label title="ამაზე ვიწრო ნარჩენი ნაჭრები არ ჩაითვლება სასარგებლოდ">მინ. სასარგებლო ნარჩენის გვერდი, მმ <input type="number" id="minOff" min="0"></label>
+        <label title="შეკვეთის დასრულებისას ნაშთში შესანახად ავტომატურად მოინიშნება მხოლოდ ის დარჩენილი ნაჭრები, რომელთა ორივე გვერდი ამ ზომაზე მეტია">ნაშთში შესანახი ნაჭრის მინ. გვერდი, მმ <input type="number" id="stockMin" min="0"></label>
+        <label class="chk" style="grid-column:1/-1"><input type="checkbox" id="useStock"> ჯერ ნაშთი გამოიყენოს („ნაშთი“ ჩანართიდან), შემდეგ ახალი ფირფიტები</label>
+      </div>
+      <p class="hint">ფირფიტის ზომები, სისქე, ფასი და ტექსტურის მიმართულება ეთითება „მასალები“ ჩანართში.</p>
+    </div>
+
+    <div class="panel">
+      <h2>3. ფურნიტურის და მომსახურების ფასები</h2>
+      <div class="grid3">
+        <label>უჯრის სალასკა, ₾ / წყვილი <input type="number" id="priceSlide" min="0" step="0.01" placeholder="0"></label>
+        <label>პეტლი, ₾ / ცალი <input type="number" id="priceHinge" min="0" step="0.01" placeholder="0"></label>
+        <label>ხელისმოსაკიდი, ₾ / ცალი <input type="number" id="priceHandle" min="0" step="0.01" placeholder="0"></label>
+        <label>ჭრა, ₾ / მეტრი <input type="number" id="priceCut" min="0" step="0.01" placeholder="0"></label>
+        <label>კრომკა, ₾ / მეტრი <input type="number" id="priceEdge" min="0" step="0.01" placeholder="0"></label>
+      </div>
+      <p class="hint">სალასკა ითვლება წყვილებში — თითო უჯრაზე ერთი წყვილი. პეტლების რაოდენობა კარის სიმაღლით განისაზღვრება (2-დან 5-მდე), ხელისმოსაკიდი — თითო კარზე და თითო უჯრაზე.</p>
+    </div>
+
+    <div class="panel">
+      <h2>4. დამატებითი დეტალები (სურვილისამებრ)</h2>
+      <table>
+        <thead><tr>
+          <th>დასახელება</th><th>მასალა</th><th>სიგრძე</th><th>სიგანე</th><th>რაოდ.</th>
+          <th title="შეიძლება თუ არა დეტალის 90°-ით შებრუნება">ბრუნვა</th>
+          <th title="რამდენ გრძელ გვერდზე ეკვრის კრომკა">კრ. სიგრძ.</th>
+          <th title="რამდენ მოკლე გვერდზე ეკვრის კრომკა">კრ. სიგან.</th><th></th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="row"><button id="addRow">+ დეტალის დამატება</button></div>
+      <div class="row">
+        <button class="primary" id="calc">გამოთვლა</button>
+        <button id="print">ბეჭდვა</button>
+        <button id="dl">ჩამოტვირთვა (Excel)</button>
+        <button id="dxf" title="თითო ფირფიტაზე ცალკე DXF ფაილი — CNC დაზგისთვის ან CAD პროგრამისთვის">საბოლოო ჭრა (DXF)</button>
+        <button id="pdf" title="პროექტის ანგარიში: კარადის ნახაზი ზომებით, მასალები და დაჭრის სქემები — PDF-ად შესანახად ან გასაგზავნად">PDF პროექტი</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="out">
+    <div class="panel empty">დაამატეთ კარადა და დააჭირეთ „გამოთვლა“-ს.</div>
+  </div>
+</div>
+
+<!-- ============================ materials ============================ -->
+<div class="page" id="tab-mats" hidden>
+  <div class="panel">
+    <h2>მასალების ცნობარი</h2>
+    <p class="hint" style="margin-top:0">აქ შეყვანილი მასალები ჩანს კონსტრუქტორში ყველა ასარჩევ სიაში; ფირფიტის ზომა, სისქე და ფასი გამოთვლისას აქედან აიღება.</p>
+    <table class="big-table" style="margin-top:12px">
+      <thead><tr>
+        <th>დასახელება</th><th>ფირფიტის სიგრძე, მმ</th><th>ფირფიტის სიგანე, მმ</th><th>სისქე, მმ</th><th>ერთი ფირფიტის ფასი, ₾</th>
+        <th title="თუ მონიშნულია, ამ მასალის კარადის დეტალები არ შებრუნდება (ხის ნახატის მიმართულება დაცულია)">ტექსტურა</th><th></th>
+      </tr></thead>
+      <tbody id="matRows"></tbody>
+    </table>
+    <div class="row"><button id="addMat">+ მასალის დამატება</button></div>
+    <p class="hint">„ტექსტურა“ — მონიშნეთ, თუ მასალას მიმართული ნახატი აქვს (მაგ. ხის ტექსტურა): მაშინ დეტალის სიგრძე ყოველთვის ფირფიტის სიგრძის გასწვრივ დაიდება. ერთფეროვანი მასალისთვის მოხსენით — დაჭრა უფრო ეკონომიური გამოვა.</p>
+  </div>
+</div>
+
+<!-- ============================ stock ============================ -->
+<div class="page" id="tab-stock" hidden>
+  <div class="panel">
+    <h2>ნაშთი — წინა შეკვეთებიდან დარჩენილი ნაჭრები</h2>
+    <p class="hint" style="margin-top:0">გამოთვლისას პროგრამა ჯერ ამ ნაჭრებზე ალაგებს დეტალებს და მხოლოდ შემდეგ იღებს ახალ ფირფიტას. ნაშთი ფასში არ ითვლება.
+      შეკვეთის დასრულებისას (ღილაკი შედეგების ბოლოს) გამოყენებული ნაჭრები აქედან ჩამოიწერება და ახალი დარჩენილი ნაწილები დაემატება.</p>
+    <table class="big-table" style="margin-top:12px">
+      <thead><tr><th>მასალა</th><th>სიგრძე, მმ</th><th>სიგანე, მმ</th><th>რაოდენობა</th><th></th></tr></thead>
+      <tbody id="stockRows"></tbody>
+    </table>
+    <div class="row"><button id="addStock">+ ნაჭრის დამატება</button></div>
+    <p class="hint">ტექსტურიანი მასალისთვის „სიგრძე“ შეიყვანეთ ტექსტურის გასწვრივ (როგორც ფირფიტის სიგრძე). ნაშთის ნაჭერს კიდე არ ეჭრება.</p>
+  </div>
+</div>
+
+<div id="report"></div>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var TEST = location.hash === '#test', SHOT = location.hash === '#shot';
+  var STORE = TEST ? 'dachra-test' : SHOT ? 'dachra-shot' : 'dachra-v3';
+  if (location.hash === '#probe') MAXIT = 60;
+  var EPS = 1e-6;
+  var MAXIT = (TEST || SHOT) ? 60 : 1e7;
+  var last = null;
+  var cabs = [], catalog = [], stock = [], uid = 1;
+  var FIELDS = ['gap', 'kerf', 'trim', 'minOff', 'stockMin', 'priceSlide', 'priceHinge', 'priceHandle', 'priceCut', 'priceEdge'];
+  var DEF = { gap: 3, kerf: 4, trim: 10, minOff: 100, stockMin: 200, priceSlide: '', priceHinge: '', priceHandle: '', priceCut: '', priceEdge: '', useStock: true };
+  function defaultCatalog() {
+    return [
+      { id: 'm1', name: 'ლამინატი 18 მმ', L: 2800, W: 2070, th: 18, price: '', grain: true },
+      { id: 'm2', name: 'ДВП 3 მმ', L: 2750, W: 1700, th: 3, price: '', grain: false },
+      { id: 'm3', name: 'ლამინატი 16 მმ (უჯრის)', L: 2800, W: 2070, th: 16, price: '', grain: false }
+    ];
+  }
+
+  var PRESETS = [
+    { name: 'გარდერობი', W: 1000, H: 2100, D: 580, shelves: 4, doors: 2, drawers: 0, fh: '', top: 'between' },
+    { name: 'სამზარეულოს ქვედა', W: 600, H: 720, D: 560, shelves: 1, doors: 1, drawers: 0, fh: '', top: 'stretch' },
+    { name: 'ქვედა უჯრებიანი', W: 600, H: 720, D: 560, shelves: 0, doors: 0, drawers: 3, fh: '', top: 'stretch' },
+    { name: 'სამზარეულოს ზედა', W: 600, H: 720, D: 300, shelves: 2, doors: 1, drawers: 0, fh: '', top: 'between' },
+    { name: 'კომოდი', W: 800, H: 850, D: 450, shelves: 0, doors: 0, drawers: 4, fh: '', top: 'overlay' },
+    { name: 'ტუმბო', W: 450, H: 500, D: 400, shelves: 0, doors: 1, drawers: 1, fh: 150, top: 'overlay' },
+    { name: 'ღია თაროებიანი', W: 800, H: 1800, D: 300, shelves: 4, doors: 0, drawers: 0, fh: '', top: 'between' },
+    { name: 'გარდერობი 2 სექციით', W: 1600, H: 2100, D: 580, top: 'between', dpos: 'bottom',
+      tree: { dir: 'v', pos: 1046, a: { shelves: 4, doors: 2, drawers: 0, fh: '' }, b: { shelves: 3, doors: 1, drawers: 2, fh: 200 } } },
+    { name: 'გარდერობი ანტრესოლით', W: 1000, H: 2400, D: 580, top: 'between', dpos: 'bottom',
+      tree: { dir: 'h', pos: 400, a: { shelves: 0, doors: 2, drawers: 0, fh: '' }, b: { shelves: 4, doors: 2, drawers: 0, fh: '' } } },
+    { name: 'ხელით აწყობა (ცარიელი)', W: 1200, H: 2000, D: 550, top: 'between', dpos: 'bottom',
+      tree: { shelves: 0, doors: 0, drawers: 0, fh: '' } }
+  ];
+  var TOPS = [['between', 'მთლიანი, გვერდებს შორის'], ['overlay', 'ზედდებული (გვერდებზე)'], ['stretch', 'ორი ზოლი (სამზ. ქვედა)']];
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function num(v) { var n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? n : NaN; }
+  function int(v, lo, hi) { var n = Math.floor(num(v)); if (!(n >= lo)) n = lo; if (n > hi) n = hi; return n; }
+  function fmt(n) { return (Math.round(n * 10) / 10).toString(); }
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+  function matById(id) { for (var i = 0; i < catalog.length; i++) if (catalog[i].id === id) return catalog[i]; return null; }
+  function newId(prefix) {
+    var id;
+    do { id = prefix + (uid++); } while (matById(id) || stock.some(function (s) { return s.id === id; }));
+    return id;
+  }
+  // <option> list of the catalog. noneLabel: text of an allowed "no material" choice (value "").
+  function matOptions(v, noneLabel) {
+    var found = !!matById(v), o = '';
+    if (noneLabel != null) o += '<option value=""' + (!found ? ' selected' : '') + '>' + noneLabel + '</option>';
+    else if (!found) o += '<option value="" selected>— აირჩიეთ მასალა —</option>';
+    catalog.forEach(function (m) {
+      o += '<option value="' + esc(m.id) + '"' + (m.id === v ? ' selected' : '') + '>' + esc(m.name || 'უსახელო მასალა') + '</option>';
+    });
+    return o;
+  }
+  // Latin file-name piece from a material name
+  var GEO = { 'ა': 'a', 'ბ': 'b', 'გ': 'g', 'დ': 'd', 'ე': 'e', 'ვ': 'v', 'ზ': 'z', 'თ': 't', 'ი': 'i', 'კ': 'k', 'ლ': 'l', 'მ': 'm', 'ნ': 'n', 'ო': 'o',
+    'პ': 'p', 'ჟ': 'zh', 'რ': 'r', 'ს': 's', 'ტ': 't', 'უ': 'u', 'ფ': 'p', 'ქ': 'k', 'ღ': 'gh', 'ყ': 'k', 'შ': 'sh', 'ჩ': 'ch', 'ც': 'ts', 'ძ': 'dz',
+    'წ': 'ts', 'ჭ': 'ch', 'ხ': 'kh', 'ჯ': 'j', 'ჰ': 'h',
+    'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ж': 'zh', 'з': 'z', 'и': 'i', 'й': 'i', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n',
+    'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u', 'ф': 'f', 'х': 'h', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'sh', 'ы': 'y', 'э': 'e', 'ю': 'yu', 'я': 'ya' };
+  function slug(s) {
+    var o = '';
+    String(s).toLowerCase().split('').forEach(function (ch) { o += GEO[ch] != null ? GEO[ch] : ch; });
+    return o.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  }
+
+  // =====================================================================
+  // Cabinet model
+  // =====================================================================
+  // ---- interior of a cabinet: a tree of compartments ----
+  // leaf  = { shelves, doors, drawers, fh }        one compartment
+  // split = { dir: 'v' | 'h', pos, a, b }          a divider; pos = size in mm of part "a" (left part / upper part)
+  var SEL = new WeakMap(); // which compartment or divider is selected in each card (not saved)
+  function leaf(o) {
+    o = o || {};
+    return { shelves: o.shelves != null ? o.shelves : 0, doors: o.doors != null ? o.doors : 0,
+      drawers: o.drawers != null ? o.drawers : 0, fh: o.fh != null ? o.fh : '' };
+  }
+  function carcT(c) { var m = matById(c.mCarc), t = m ? num(m.th) : NaN; return t > 0 ? t : 18; }
+  // data saved by the previous version: a row of sections with optional widths
+  function sectionsToTree(c, t) {
+    var n = c.sections.length, avail = num(c.W) - 2 * t - (n - 1) * t, fixed = 0, autos = 0;
+    var isFixed = c.sections.map(function (s) { return num(s.w) > 0; });
+    if (isFixed.every(function (f) { return f; })) isFixed[n - 1] = false;
+    c.sections.forEach(function (s, i) { if (isFixed[i]) fixed += num(s.w); else autos++; });
+    var autoW = Math.floor((avail - fixed) / autos * 10) / 10, node = leaf(c.sections[n - 1]);
+    for (var i = n - 2; i >= 0; i--) node = { dir: 'v', pos: isFixed[i] ? num(c.sections[i].w) : autoW, a: leaf(c.sections[i]), b: node };
+    return node;
+  }
+  function norm(c, t) {
+    if (!c.tree) {
+      if (Array.isArray(c.sections) && c.sections.length > 1) c.tree = sectionsToTree(c, t);
+      else c.tree = leaf(Array.isArray(c.sections) && c.sections[0] ? c.sections[0] : c);
+    }
+    delete c.sections; delete c.shelves; delete c.doors; delete c.drawers; delete c.fh;
+    return c;
+  }
+  function nodeAt(c, path) { var n = c.tree; for (var i = 0; i < path.length && n; i++) n = n[path.charAt(i)]; return n; }
+  function setNode(c, path, node) { if (!path) c.tree = node; else nodeAt(c, path.slice(0, -1))[path.slice(-1)] = node; }
+
+  // Geometry of the interior. t = carcass thickness.
+  // cells: inner rectangle x, y, w, h and the part of the front the compartment owns (fx0, fy0, fw, fhh — up to the middle of dividers).
+  // In every compartment the drawers form one stack, doors cover the rest of its height.
+  function layout(c, t) {
+    norm(c, t);
+    var W = num(c.W), H = num(c.H), cells = [], divs = [], err = '';
+    function walk(n, path, x, y, w, h) {
+      if (n.dir) {
+        // a divider that no longer fits (cabinet resized, outer divider moved, half-typed number) is quietly
+        // pulled back inside its compartment; it is an error only when the compartment cannot hold a divider at all
+        var size = n.dir === 'v' ? w : h, p = num(n.pos), hi = size - t - 30;
+        if (hi < 30) {
+          if (!err) err = 'განყოფილება ძალიან პატარაა მასში ჩასმული ტიხრისთვის — წაშალეთ ეს ტიხარი ან გაზარდეთ განყოფილება.';
+          p = Math.max(1, (size - t) / 2);
+        } else {
+          if (!isFinite(p)) p = Math.floor((size - t) / 2);
+          p = Math.max(30, Math.min(p, hi));
+        }
+        if (n.dir === 'v') {
+          divs.push({ path: path, dir: 'v', x: x + p, y: y, w: t, h: h, len: h, size: size, p: p });
+          walk(n.a, path + 'a', x, y, p, h); walk(n.b, path + 'b', x + p + t, y, w - p - t, h);
+        } else {
+          divs.push({ path: path, dir: 'h', x: x, y: y + p, w: w, h: t, len: w, size: size, p: p });
+          walk(n.a, path + 'a', x, y, w, p); walk(n.b, path + 'b', x, y + p + t, w, h - p - t);
+        }
+        return;
+      }
+      var fx0 = x <= t + EPS ? 0 : x - t / 2, fx1 = x + w >= W - t - EPS ? W : x + w + t / 2;
+      var fy0 = y <= t + EPS ? 0 : y - t / 2, fy1 = y + h >= H - t - EPS ? H : y + h + t / 2;
+      var nd = int(n.doors, 0, 2), nr = int(n.drawers, 0, 12), fh = num(n.fh), fhh = fy1 - fy0;
+      // a typed height below 80 mm (e.g. a number still being typed) counts as "automatic";
+      // automatic: drawers share the height evenly, or 180 mm each (less if needed) when a door must also fit
+      if (!(fh >= 80)) fh = nr ? (nd ? Math.min(180, Math.floor((fhh - 150) / nr)) : Math.floor(fhh / nr)) : 0;
+      var drH = nr * fh;
+      cells.push({ path: path, x: x, y: y, w: w, h: h, fx0: fx0, fy0: fy0, fw: fx1 - fx0, fhh: fhh, nd: nd, nr: nr, fh: fh, drH: drH,
+        doorH: nd ? fhh - drH : 0, ns: int(n.shelves, 0, 40), k: cells.length + 1 });
+    }
+    walk(c.tree, '', t, t, W - 2 * t, H - 2 * t);
+    var many = cells.length > 1;
+    cells.forEach(function (cl) {
+      cl.tag = many ? ' · გ' + cl.k : '';
+      cl.pre = many ? 'განყოფილება ' + cl.k + ': ' : '';
+      if (err) return;
+      if (cl.nr && cl.fh < 80) err = cl.pre + 'ამდენი უჯრა ამ სიმაღლეში არ ეტევა — შეამცირეთ უჯრების რაოდენობა.';
+      else if (cl.nr && cl.drH > cl.fhh + EPS) err = cl.pre + 'უჯრები სიმაღლეში არ ეტევა.';
+      else if (cl.nd && cl.doorH < 150) err = cl.pre + 'კარისთვის ადგილი აღარ რჩება — შეამცირეთ უჯრების რაოდენობა ან ფასადის სიმაღლე.';
+    });
+    return { cells: cells, divs: divs, err: err };
+  }
+  function hingeCount(h) { return h <= 900 ? 2 : h <= 1600 ? 3 : h <= 2000 ? 4 : 5; }
+
+  // Parts and hardware of ONE cabinet. Every part carries the id of its catalog material.
+  // el / ew = number of banded edges along length / width. gap = clearance around doors and drawer fronts.
+  function gen(c, gap) {
+    if (!(gap >= 0)) gap = 3;
+    var W = num(c.W), H = num(c.H), D = num(c.D), errs = [], parts = [], hw = { slides: 0, hinges: 0, handles: 0 };
+    var res = { parts: parts, hw: hw, errs: errs };
+    if (!(W > 0) || !(H > 0) || !(D > 0)) { errs.push('მიუთითეთ სიგანე, სიმაღლე და სიღრმე.'); return res; }
+    var mc = matById(c.mCarc);
+    if (!mc) { errs.push('აირჩიეთ კორპუსის მასალა.'); return res; }
+    var t = num(mc.th);
+    if (!(t > 0)) { errs.push('კორპუსის მასალას სისქე არ აქვს მითითებული („მასალები“ ჩანართი).'); return res; }
+    var Wi = W - 2 * t;
+    if (Wi < 100) errs.push('სიგანე ძალიან მცირეა.');
+    if (H < 3 * t + 50) errs.push('სიმაღლე ძალიან მცირეა.');
+    if (D < 100) errs.push('სიღრმე ძალიან მცირეა.');
+    if (errs.length) return res;
+    var lay = layout(c, t);
+    if (lay.err) errs.push(lay.err);
+    var anyFront = lay.cells.some(function (s) { return s.nd || s.nr; }), anyDr = lay.cells.some(function (s) { return s.nr; });
+    var mf = matById(c.mFront), mb = c.mBack ? matById(c.mBack) : null, mx = matById(c.mBox), mo = matById(c.mBottom);
+    if (anyFront && !mf) errs.push('აირჩიეთ ფასადის მასალა.');
+    if (c.mBack && !mb) errs.push('აირჩიეთ უკანა კედლის მასალა.');
+    if (anyDr && !mx) errs.push('აირჩიეთ უჯრის გვერდების მასალა.');
+    if (anyDr && !mo) errs.push('აირჩიეთ უჯრის ძირის მასალა.');
+    if (errs.length) return res;
+    function add(name, l, w, q, mat, el, ew) {
+      if (!(q > 0)) return;
+      for (var i = 0; i < parts.length; i++) {
+        var p = parts[i];
+        if (p.name === name && p.l === l && p.w === w && p.mat === mat) { p.q += q; return; }
+      }
+      parts.push({ name: name, l: l, w: w, q: q, mat: mat, el: el || 0, ew: ew || 0 });
+    }
+    add('გვერდი', c.top === 'overlay' ? H - t : H, D, 2, mc.id, 1, 0);
+    if (c.top === 'overlay') add('ზედა პანელი', W, D, 1, mc.id, 1, 2);
+    else if (c.top === 'stretch') add('ზედა ზოლი', Wi, 100, 2, mc.id, 1, 0);
+    else add('ჭერი', Wi, D, 1, mc.id, 1, 0);
+    add('ძირი', Wi, D, 1, mc.id, 1, 0);
+    lay.divs.forEach(function (dv) { add(dv.dir === 'v' ? 'ვერტიკალური ტიხარი' : 'ჰორიზონტალური ტიხარი', dv.len, D, 1, mc.id, 1, 0); });
+    if (mb) {
+      // a back panel wider than the sheet is made of several equal strips
+      var tr = num($('trim').value), bL = num(mb.L) - 2 * (tr >= 0 ? tr : 0), bW = num(mb.W) - 2 * (tr >= 0 ? tr : 0), parts2 = 1;
+      var fitsBack = function (l, w) { return (l <= bL && w <= bW) || (!mb.grain && l <= bW && w <= bL); };
+      if (bL > 0 && bW > 0 && !fitsBack(H - 4, W - 4)) {
+        for (var kk = 2; kk <= 8; kk++) if (fitsBack(H - 4, Math.floor((W - 4) / kk))) { parts2 = kk; break; }
+      }
+      if (parts2 > 1) add('უკანა კედელი (' + parts2 + ' ნაწილი)', H - 4, Math.floor((W - 4) / parts2), parts2, mb.id);
+      else add('უკანა კედელი', H - 4, W - 4, 1, mb.id);
+    }
+    for (var si = 0; si < lay.cells.length; si++) {
+      var s = lay.cells[si];
+      add('თარო' + s.tag, s.w, D - 20, s.ns, mc.id, 1, 0);
+      if (s.nd) {
+        var dh = Math.floor(s.doorH - gap), dw = Math.floor((s.fw - gap - gap * (s.nd - 1)) / s.nd);
+        add('კარი' + s.tag, dh, dw, s.nd, mf.id, 2, 2);
+        hw.hinges += s.nd * hingeCount(dh);
+        hw.handles += s.nd;
+      }
+      if (s.nr) {
+        var Ld = Math.min(600, Math.floor((D - 10) / 50) * 50), bw = s.w - 26, hb = Math.max(60, Math.floor(s.fh - 50)), tb = num(mx.th);
+        if (!(tb > 0)) { errs.push('უჯრის გვერდების მასალას სისქე არ აქვს მითითებული.'); return res; }
+        if (Ld < 250) { errs.push('სიღრმე ძალიან მცირეა უჯრისთვის (მინ. 260 მმ).'); return res; }
+        if (bw - 2 * tb < 60) { errs.push(s.pre + 'სიგანე ძალიან მცირეა უჯრისთვის.'); return res; }
+        add('უჯრის ფასადი' + s.tag, Math.floor(s.fw - gap), Math.floor(s.fh - gap), s.nr, mf.id, 2, 2);
+        add('უჯრის გვერდი' + s.tag, Ld, hb, 2 * s.nr, mx.id, 1, 0);
+        add('უჯრის წინა კედელი' + s.tag, bw - 2 * tb, hb, s.nr, mc.id, 1, 0); // always from the carcass material
+        add('უჯრის უკანა კედელი' + s.tag, bw - 2 * tb, hb, s.nr, mx.id, 1, 0);
+        add('უჯრის ძირი' + s.tag, Ld, bw, s.nr, mo.id);
+        hw.slides += s.nr;
+        hw.handles += s.nr;
+      }
+    }
+    return res;
+  }
+
+  // Front-view drawing of a cabinet; it is also the editor: compartments and dividers can be clicked, dividers dragged.
+  function previewSvg(c, t, lay, sel) {
+    var W = num(c.W), H = num(c.H), sw = Math.max(W, H) / 230, m = sw * 2, i;
+    var R = function (x, y, w, h, fill, stroke, extra) {
+      return '<rect x="' + x + '" y="' + y + '" width="' + Math.max(w, 0) + '" height="' + Math.max(h, 0) + '" fill="' + fill +
+        '" stroke="' + stroke + '" stroke-width="' + sw + '"' + (extra || '') + '/>';
+    };
+    var Ln = function (x1, y1, x2, y2, col, dash) {
+      return '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + col + '" stroke-width="' + sw * 1.4 +
+        '"' + (dash ? ' stroke-dasharray="' + sw * 4 + ' ' + sw * 3 + '"' : '') + ' stroke-linecap="round" pointer-events="none"/>';
+    };
+    var s = '<svg viewBox="' + (-m) + ' ' + (-m) + ' ' + (W + 2 * m) + ' ' + (H + 2 * m) + '" xmlns="http://www.w3.org/2000/svg">';
+    s += R(0, 0, W, H, '#fbf8f1', '#555');
+    var wood = '#dccba6', ov = c.top === 'overlay', none = ' pointer-events="none"';
+    s += R(0, ov ? t : 0, t, ov ? H - t : H, wood, '#555');
+    s += R(W - t, ov ? t : 0, t, ov ? H - t : H, wood, '#555');
+    if (ov) s += R(0, 0, W, t, wood, '#555'); else s += R(t, 0, W - 2 * t, t, wood, '#555');
+    s += R(t, H - t, W - 2 * t, t, wood, '#555');
+    var bottom = c.dpos === 'bottom', many = lay.cells.length > 1;
+    lay.cells.forEach(function (sc) {
+      var on = sel && !sel.div && sel.path === sc.path;
+      s += '<rect data-path="' + sc.path + '" x="' + sc.x + '" y="' + sc.y + '" width="' + Math.max(sc.w, 0) + '" height="' + Math.max(sc.h, 0) +
+        '" fill="' + (on ? 'rgba(180,84,26,.13)' : 'rgba(255,255,255,0.01)') + '" stroke="' + (on ? '#b4541a' : 'none') + '" stroke-width="' + sw * 2.5 +
+        '" style="cursor:pointer"/>';
+      for (i = 0; i < sc.ns; i++) {
+        var sy = sc.y + (i + 1) * sc.h / (sc.ns + 1);
+        s += Ln(sc.x, sy, sc.x + sc.w, sy, '#8a7a55', true);
+      }
+      var hl = Math.min(sc.fw * 0.14, 90), drTop = bottom ? sc.fy0 + sc.fhh - sc.drH : sc.fy0, doorTop = bottom ? sc.fy0 : sc.fy0 + sc.drH;
+      for (i = 0; i < sc.nr; i++) {
+        var y = drTop + i * sc.fh;
+        s += R(sc.fx0 + 1.5, y + 1.5, sc.fw - 3, sc.fh - 3, 'rgba(180,84,26,.16)', '#b4541a', none);
+        s += Ln(sc.fx0 + sc.fw / 2 - hl, y + sc.fh * 0.4, sc.fx0 + sc.fw / 2 + hl, y + sc.fh * 0.4, '#7a3a12');
+      }
+      if (sc.nd) {
+        var dw = (sc.fw - 3 - 3 * (sc.nd - 1)) / sc.nd, vl = Math.min(sc.doorH * 0.07, 90), cy = doorTop + sc.doorH / 2;
+        for (i = 0; i < sc.nd; i++) {
+          var x = sc.fx0 + 1.5 + i * (dw + 3);
+          s += R(x, doorTop + 1.5, dw, sc.doorH - 3, 'rgba(60,110,160,.14)', '#3c6ea0', none);
+          var hx = (sc.nd === 2 && i === 1) ? x + dw * 0.1 : x + dw * 0.9;
+          s += Ln(hx, cy - vl, hx, cy + vl, '#27507a');
+        }
+      }
+      if (many) {
+        var fs = Math.min(sw * 13, sc.w * 0.5, sc.h * 0.5);
+        s += '<text x="' + (sc.x + sc.w / 2) + '" y="' + (sc.y + sc.h / 2 + fs * 0.35) + '" font-size="' + fs + '" text-anchor="middle" fill="#6b7278" ' +
+          'font-family="Segoe UI, sans-serif">' + sc.k + '</text>';
+      }
+    });
+    // dividers on top: the visible board plus a wider invisible strip that is easier to grab
+    lay.divs.forEach(function (dv) {
+      var on = sel && sel.div && sel.path === dv.path, pad = sw * 5;
+      s += R(dv.x, dv.y, dv.w, dv.h, on ? '#b4541a' : wood, on ? '#7a3a12' : '#555', none);
+      s += '<rect data-div="' + dv.path + '" x="' + (dv.x - (dv.dir === 'v' ? pad : 0)) + '" y="' + (dv.y - (dv.dir === 'h' ? pad : 0)) +
+        '" width="' + (dv.w + (dv.dir === 'v' ? 2 * pad : 0)) + '" height="' + (dv.h + (dv.dir === 'h' ? 2 * pad : 0)) +
+        '" fill="rgba(255,255,255,0.01)" style="cursor:' + (dv.dir === 'v' ? 'ew-resize' : 'ns-resize') + ';touch-action:none"/>';
+    });
+    return s + '</svg>';
+  }
+  function getSel(c, lay) {
+    var s = SEL.get(c);
+    var okSel = s && (s.div ? lay.divs.some(function (d) { return d.path === s.path; }) : lay.cells.some(function (d) { return d.path === s.path; }));
+    if (!okSel) { s = { path: lay.cells[0].path, div: false }; SEL.set(c, s); }
+    return s;
+  }
+  // the panel next to the drawing: properties of the selected compartment or divider
+  function panelHtml(c, t, lay, sel) {
+    var opts = function (list, v) {
+      return list.map(function (o) { return '<option value="' + o[0] + '"' + (String(o[0]) === String(v) ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('');
+    };
+    var tip = '<p class="hint">ნახატზე დააწკაპუნეთ განყოფილებას ასარჩევად. ტიხარი თაგვით გადაათრიეთ, ან დააწკაპუნეთ და ზუსტი მანძილი ჩაწერეთ.</p>';
+    if (sel.div) {
+      var dv = lay.divs.filter(function (d) { return d.path === sel.path; })[0], v = dv.dir === 'v';
+      return '<div class="sep">არჩეულია ' + (v ? 'ვერტიკალური' : 'ჰორიზონტალური') + ' ტიხარი</div><div class="grid2">' +
+        '<label>' + (v ? 'მარცხნივ რჩება, მმ' : 'ზემოთ რჩება, მმ') + '<input type="number" data-divpos="1" min="30" value="' + fmt(dv.p) + '"></label>' +
+        '<label>' + (v ? 'მარჯვნივ რჩება, მმ' : 'ქვემოთ რჩება, მმ') + '<input type="number" data-divrest="1" min="30" value="' + fmt(dv.size - dv.p - t) + '"></label></div>' +
+        '<div class="row"><button data-deldiv="1">ტიხრის წაშლა</button></div>' + tip;
+    }
+    var cl = lay.cells.filter(function (d) { return d.path === sel.path; })[0], n = nodeAt(c, sel.path);
+    var inp = function (label, k, extra) {
+      return '<label>' + label + '<input type="number" data-cell="' + k + '" value="' + esc(n[k]) + '" ' + extra + '></label>';
+    };
+    return '<div class="sep">არჩეული განყოფილება' + (lay.cells.length > 1 ? ' №' + cl.k : '') + ' — შიდა ზომა ' + fmt(cl.w) + '×' + fmt(cl.h) + ' მმ</div>' +
+      '<div class="row" style="margin-top:4px"><button class="preset" data-split="v" title="არჩეული განყოფილება გაიყოფა მარცხენა და მარჯვენა ნაწილად">┃ ვერტიკალური ტიხარი</button>' +
+      '<button class="preset" data-split="h" title="არჩეული განყოფილება გაიყოფა ზედა და ქვედა ნაწილად">━ ჰორიზონტალური ტიხარი</button></div>' +
+      '<div class="grid2" style="margin-top:8px">' + inp('თაროები', 'shelves', 'min="0" step="1"') +
+      '<label>კარები<select data-cell="doors">' + opts([[0, 'არ აქვს'], [1, '1 კარი'], [2, '2 კარი']], int(n.doors, 0, 2)) + '</select></label>' +
+      inp('უჯრები', 'drawers', 'min="0" step="1"') + inp('უჯრის ფასადის სიმაღლე', 'fh', 'min="0" placeholder="ავტომატური"') + '</div>' + tip;
+  }
+
+  // ---------- cabinet cards ----------
+  function cabCard(c, i) {
+    norm(c, carcT(c));
+    var f = function (label, k, extra) {
+      return '<label>' + label + '<input type="number" data-k="' + k + '" value="' + esc(c[k]) + '" ' + (extra || 'min="0"') + '></label>';
+    };
+    var opts = function (list, v) {
+      return list.map(function (o) { return '<option value="' + o[0] + '"' + (String(o[0]) === String(v) ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('');
+    };
+    var ms = function (label, k, none, title) {
+      return '<label' + (title ? ' title="' + title + '"' : '') + '>' + label + '<select data-k="' + k + '">' + matOptions(c[k], none) + '</select></label>';
+    };
+    return '<div class="cab" data-i="' + i + '">' +
+      '<div class="cab-head"><input type="text" data-k="name" value="' + esc(c.name) + '" placeholder="კარადის დასახელება">' +
+      '<label>რაოდ. <input type="number" data-k="q" min="1" step="1" value="' + esc(c.q) + '"></label>' +
+      '<button class="del" data-del="1" title="კარადის წაშლა">✕</button></div>' +
+      '<div class="cab-grid" style="margin-top:8px">' +
+      f('სიგანე', 'W') + f('სიმაღლე', 'H') + f('სიღრმე', 'D') +
+      '<label class="wide">ჭერი<select data-k="top">' + opts(TOPS, c.top) + '</select></label>' +
+      '<label title="მხოლოდ ნახატისთვის — დეტალებზე არ მოქმედებს">უჯრები<select data-k="dpos">' +
+      opts([['top', 'ზემოთ'], ['bottom', 'ქვემოთ']], c.dpos === 'bottom' ? 'bottom' : 'top') + '</select></label>' +
+      '<div class="sep">მასალები</div>' +
+      ms('კორპუსი', 'mCarc', null, 'გვერდები, ჭერი, ძირი, ტიხრები, თაროები და უჯრის წინა კედელი') +
+      ms('ფასადი', 'mFront', null, 'კარები და უჯრის ფასადები') +
+      ms('უკანა კედელი', 'mBack', 'არ აქვს') +
+      ms('უჯრის გვერდები და უკანა კედელი', 'mBox', null, 'უჯრის წინა კედელი ყოველთვის კორპუსის მასალიდანაა') +
+      ms('უჯრის ძირი', 'mBottom') +
+      '</div>' +
+      '<div class="sep2">შიდა განლაგება — ტიხრები, თაროები, კარები, უჯრები</div>' +
+      '<div class="ed"><div class="prev"></div><div class="ed-panel"></div></div>' +
+      '<div class="cab-info"></div></div>';
+  }
+  // keepPanel: do not rebuild the panel (the user is typing in it)
+  function refreshCab(el, c, keepPanel) {
+    var t = carcT(c), info = el.querySelector('.cab-info'), prev = el.querySelector('.prev'), panel = el.querySelector('.ed-panel');
+    if (!(num(c.W) > 0) || !(num(c.H) > 0) || num(c.W) > 20000 || num(c.H) > 20000) {
+      prev.innerHTML = ''; panel.innerHTML = '<p class="hint">მიუთითეთ კარადის სიგანე და სიმაღლე.</p>';
+    } else {
+      var lay = layout(c, t), sel = getSel(c, lay);
+      prev.innerHTML = previewSvg(c, t, lay, sel);
+      if (!keepPanel) panel.innerHTML = panelHtml(c, t, lay, sel);
+    }
+    var g = gen(c, gapVal());
+    if (g.errs.length) { info.className = 'cab-info bad'; info.textContent = g.errs.join(' '); return; }
+    var n = 0;
+    g.parts.forEach(function (p) { n += p.q; });
+    info.className = 'cab-info';
+    info.textContent = 'ერთ კარადაზე — დეტალი: ' + n + ' · პეტლი: ' + g.hw.hinges + ' · სალასკა: ' + g.hw.slides +
+      ' წყვილი · ხელისმოსაკიდი: ' + g.hw.handles;
+  }
+
+  function gapVal() { var g = num($('gap').value); return g >= 0 ? g : 3; }
+  function refreshAllCabs() {
+    Array.prototype.forEach.call($('cabs').querySelectorAll('.cab'), function (el) { refreshCab(el, cabs[+el.getAttribute('data-i')]); });
+  }
+  function renderCabs() {
+    $('cabs').innerHTML = cabs.length ? cabs.map(cabCard).join('')
+      : '<p class="hint">კარადა ჯერ არ არის დამატებული.</p>';
+    refreshAllCabs();
+  }
+  // default materials for a new cabinet: first catalog material for the body, first thin one for back / drawer bottoms
+  function defaultMats(c) {
+    var main = catalog[0] ? catalog[0].id : '', thin = main;
+    for (var i = 0; i < catalog.length; i++) if (num(catalog[i].th) <= 6) { thin = catalog[i].id; break; }
+    c.mCarc = main; c.mFront = main; c.mBox = main; c.mBack = thin; c.mBottom = thin;
+    return c;
+  }
+  function addCab(p) {
+    var c = defaultMats(clone(p));
+    c.q = 1;
+    cabs.push(c);
+    renderCabs();
+    save();
+  }
+
+  // ---------- manual parts table ----------
+  function sel(cls, v) {
+    v = parseInt(v, 10) || 0;
+    return '<td class="c"><select class="' + cls + '">' + [0, 1, 2].map(function (n) {
+      return '<option' + (n === v ? ' selected' : '') + '>' + n + '</option>';
+    }).join('') + '</select></td>';
+  }
+  function addRow(p) {
+    p = p || { name: '', l: '', w: '', q: 1, rot: true, mat: catalog[0] ? catalog[0].id : '' };
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><input type="text" class="p-name" value="' + esc(p.name) + '" placeholder="მაგ. ცოკოლი"></td>' +
+      '<td class="w-mat"><select class="p-mat full">' + matOptions(p.mat) + '</select></td>' +
+      '<td class="w-num"><input type="number" class="p-l" min="1" value="' + esc(p.l) + '"></td>' +
+      '<td class="w-num"><input type="number" class="p-w" min="1" value="' + esc(p.w) + '"></td>' +
+      '<td class="w-qty"><input type="number" class="p-q" min="1" step="1" value="' + esc(p.q) + '"></td>' +
+      '<td class="c"><input type="checkbox" class="p-rot"' + (p.rot ? ' checked' : '') + '></td>' +
+      sel('p-el', p.el) + sel('p-ew', p.ew) +
+      '<td class="w-x"><button class="del" title="წაშლა">✕</button></td>';
+    tr.querySelector('.del').onclick = function () { tr.remove(); if (!$('rows').children.length) addRow(); save(); };
+    $('rows').appendChild(tr);
+    return tr;
+  }
+  function readParts() {
+    var parts = [];
+    Array.prototype.forEach.call($('rows').children, function (tr) {
+      parts.push({
+        name: tr.querySelector('.p-name').value.trim(),
+        mat: tr.querySelector('.p-mat').value,
+        l: tr.querySelector('.p-l').value,
+        w: tr.querySelector('.p-w').value,
+        q: tr.querySelector('.p-q').value,
+        rot: tr.querySelector('.p-rot').checked,
+        el: tr.querySelector('.p-el').value,
+        ew: tr.querySelector('.p-ew').value
+      });
+    });
+    return parts;
+  }
+  function renderRows(parts) {
+    $('rows').innerHTML = '';
+    (parts || []).forEach(addRow);
+    if (!$('rows').children.length) addRow();
+  }
+
+  // ---------- materials catalog table ----------
+  function renderCatalog() {
+    var cell = function (m, k, extra) { return '<td class="w-num"><input type="number" data-k="' + k + '" value="' + esc(m[k]) + '" ' + extra + '></td>'; };
+    $('matRows').innerHTML = catalog.map(function (m, i) {
+      return '<tr data-i="' + i + '"><td><input type="text" data-k="name" value="' + esc(m.name) + '" placeholder="მასალის დასახელება"></td>' +
+        cell(m, 'L', 'min="1"') + cell(m, 'W', 'min="1"') + cell(m, 'th', 'min="0.5" step="0.5"') + cell(m, 'price', 'min="0" step="0.01" placeholder="0"') +
+        '<td class="c"><input type="checkbox" data-k="grain"' + (m.grain ? ' checked' : '') + '></td>' +
+        '<td class="w-x"><button class="del" data-del="1" title="მასალის წაშლა">✕</button></td></tr>';
+    }).join('') || '<tr><td colspan="7" class="hint">მასალა ჯერ არ არის დამატებული.</td></tr>';
+  }
+  // ---------- stock table ----------
+  function stockTotal() { var n = 0; stock.forEach(function (s) { var q = Math.floor(num(s.q)); if (q > 0) n += q; }); return n; }
+  function renderStock() {
+    var cell = function (s, k, extra) { return '<td class="w-num"><input type="number" data-k="' + k + '" value="' + esc(s[k]) + '" ' + extra + '></td>'; };
+    $('stockRows').innerHTML = stock.map(function (s, i) {
+      return '<tr data-i="' + i + '"><td><select class="full" data-k="mat">' + matOptions(s.mat) + '</select></td>' +
+        cell(s, 'L', 'min="1"') + cell(s, 'W', 'min="1"') + cell(s, 'q', 'min="1" step="1"') +
+        '<td class="w-x"><button class="del" data-del="1" title="წაშლა">✕</button></td></tr>';
+    }).join('') || '<tr><td colspan="5" class="hint">ნაშთი ცარიელია.</td></tr>';
+    $('stockCount').textContent = stockTotal();
+  }
+  function addStockPiece(matId, L, W, q) {
+    L = Math.round(L * 10) / 10; W = Math.round(W * 10) / 10;
+    for (var i = 0; i < stock.length; i++) {
+      var s = stock[i];
+      if (s.mat === matId && Math.abs(num(s.L) - L) < 0.05 && Math.abs(num(s.W) - W) < 0.05) { s.q = (Math.floor(num(s.q)) || 0) + q; return; }
+    }
+    stock.push({ id: newId('s'), mat: matId, L: L, W: W, q: q });
+  }
+
+  // ---------- tabs ----------
+  function showTab(name) {
+    ['build', 'mats', 'stock'].forEach(function (t) { $('tab-' + t).hidden = t !== name; });
+    Array.prototype.forEach.call($('tabs').children, function (b) { b.className = b.getAttribute('data-tab') === name ? 'on' : ''; });
+    if (name === 'build') { renderCabs(); renderRows(readParts()); } // material lists may have changed
+    if (name === 'mats') renderCatalog();
+    if (name === 'stock') renderStock();
+  }
+
+  // ---------- state ----------
+  function readState() {
+    var st = { v: 3, catalog: catalog, stock: stock, cabs: cabs, parts: readParts(), useStock: $('useStock').checked, uid: uid };
+    FIELDS.forEach(function (k) { st[k] = $(k).value; });
+    return st;
+  }
+  function applyState(s) {
+    FIELDS.forEach(function (k) { $(k).value = s[k] != null ? s[k] : DEF[k]; });
+    $('useStock').checked = s.useStock !== false;
+    catalog = clone(s.catalog || defaultCatalog());
+    stock = clone(s.stock || []);
+    cabs = clone(s.cabs || []);
+    uid = s.uid > 0 ? s.uid : 100;
+    renderCatalog();
+    renderStock();
+    renderCabs();
+    renderRows(s.parts);
+  }
+  function save() { try { localStorage.setItem(STORE, JSON.stringify(readState())); } catch (e) {} }
+  // converts the state of the previous version (three fixed materials) to the catalog form
+  function migrate(o) {
+    var s = { catalog: [
+      { id: 'm1', name: 'ლამინატი ' + (o.th || 18) + ' მმ', L: o.sheetL || 2800, W: o.sheetW || 2070, th: o.th || 18, price: o.priceSheet || '', grain: o.grain !== false },
+      { id: 'm2', name: 'ДВП ' + (o.bTh || 3) + ' მმ', L: o.bL || 2750, W: o.bW || 1700, th: o.bTh || 3, price: o.bPrice || '', grain: false },
+      { id: 'm3', name: 'უჯრის მასალა ' + (o.dTh || 16) + ' მმ', L: o.dL || 2800, W: o.dW || 2070, th: o.dTh || 16, price: o.dPrice || '', grain: false }
+    ], stock: [], uid: 100 };
+    FIELDS.forEach(function (k) { if (o[k] != null) s[k] = o[k]; });
+    s.cabs = (o.cabs || []).map(function (c) {
+      var n = clone(c);
+      n.mCarc = 'm1'; n.mFront = 'm1';
+      n.mBack = c.back === 'main' ? 'm1' : c.back === 'box' ? 'm3' : (c.back === true || c.back === 'hdf') ? 'm2' : '';
+      n.mBox = c.box === 'sep' ? 'm3' : 'm1';
+      n.mBottom = c.bottom === 'main' ? 'm1' : c.bottom === 'box' ? 'm3' : 'm2';
+      delete n.back; delete n.box; delete n.bottom;
+      return n;
+    });
+    s.parts = (o.parts || []).map(function (p) { var n = clone(p); n.mat = 'm1'; return n; });
+    return s;
+  }
+  function load() {
+    var s = null;
+    try { s = JSON.parse(localStorage.getItem(STORE)); } catch (e) {}
+    if (!s || !Array.isArray(s.catalog)) {
+      var old = null;
+      try { old = JSON.parse(localStorage.getItem('dachra-v2')); } catch (e2) {}
+      if (old && Array.isArray(old.cabs) && STORE === 'dachra-v3') s = migrate(old);
+    }
+    if (!s || !Array.isArray(s.catalog)) {
+      s = clone(DEF);
+      s.catalog = defaultCatalog(); s.stock = []; s.parts = [];
+      catalog = s.catalog; // defaultMats needs the catalog
+      var c = defaultMats(clone(PRESETS[0])); c.q = 1;
+      s.cabs = [c];
+    }
+    applyState(s);
+  }
+
+  // =====================================================================
+  // Packing (guillotine cuts)
+  // =====================================================================
+  // Every piece and every sheet are enlarged by the kerf, so that a saw cut fits between neighbours.
+  // bins = leftover pieces from stock ({L, W, sid}); they are filled first, new full sheets are opened only when needed.
+  var SPLITS = ['SLAS', 'LLAS', 'SAS', 'LAS', 'H', 'V'];
+  var HEUR = ['BAF', 'BSSF', 'BLSF'];
+
+  function pack(items, bins, UW, UH, kerf, heur, split) {
+    function mk(uw, uh, st) { return { free: [{ x: 0, y: 0, w: uw, h: uh }], placed: [], used: 0, cut: 0, UW: uw, UH: uh, stock: st || null }; }
+    function place(sh, it) {
+      var best = null;
+      for (var f = 0; f < sh.free.length; f++) {
+        var fr = sh.free[f];
+        for (var o = 0; o < 2; o++) {
+          if (o === 1 && (!it.rot || it.w === it.h)) break;
+          var pw = (o ? it.h : it.w) + kerf, ph = (o ? it.w : it.h) + kerf;
+          if (pw > fr.w + EPS || ph > fr.h + EPS) continue;
+          var dw = fr.w - pw, dh = fr.h - ph, sc;
+          if (heur === 'BAF') sc = fr.w * fr.h - pw * ph;
+          else if (heur === 'BSSF') sc = Math.min(dw, dh);
+          else sc = Math.max(dw, dh);
+          if (!best || sc < best.sc) best = { sc: sc, f: f, pw: pw, ph: ph, rotated: o === 1 };
+        }
+      }
+      if (!best) return false;
+      var r = sh.free[best.f];
+      sh.free.splice(best.f, 1);
+      var dW = r.w - best.pw, dH = r.h - best.ph, horiz;
+      switch (split) {
+        case 'H': horiz = true; break;
+        case 'V': horiz = false; break;
+        case 'SLAS': horiz = dW < dH; break;
+        case 'LLAS': horiz = dW >= dH; break;
+        case 'SAS': horiz = r.w < r.h; break;
+        default: horiz = r.w >= r.h;
+      }
+      if (dW > EPS) sh.free.push({ x: r.x + best.pw, y: r.y, w: dW, h: horiz ? best.ph : r.h });
+      if (dH > EPS) sh.free.push({ x: r.x, y: r.y + best.ph, w: horiz ? r.w : best.pw, h: dH });
+      // saw travel for the two cuts that free this piece
+      if (horiz) {
+        if (dH > EPS) sh.cut += Math.max(r.w - kerf, 0);
+        if (dW > EPS) sh.cut += best.ph - kerf;
+      } else {
+        if (dW > EPS) sh.cut += Math.max(r.h - kerf, 0);
+        if (dH > EPS) sh.cut += best.pw - kerf;
+      }
+      sh.placed.push({ x: r.x, y: r.y, w: best.pw - kerf, h: best.ph - kerf, id: it.id, rotated: best.rotated });
+      sh.used += it.w * it.h;
+      return true;
+    }
+    var sheets = bins.map(function (b) { return mk(b.L + kerf, b.W + kerf, b); });
+    for (var i = 0; i < items.length; i++) {
+      var done = false;
+      for (var s = 0; s < sheets.length && !done; s++) done = place(sheets[s], items[i]);
+      if (!done) {
+        var ns = mk(UW, UH, null);
+        if (!place(ns, items[i])) return null; // does not fit even an empty sheet
+        sheets.push(ns);
+      }
+    }
+    return sheets.filter(function (sh) { return sh.placed.length > 0; });
+  }
+
+  // Largest empty rectangle on a sheet, given the occupied rectangles (all in kerf-enlarged coordinates).
+  function largestEmpty(obs, UW, UH, ms) {
+    var o = obs.slice().sort(function (a, b) { return a.y - b.y; });
+    var xs = [0, UW], i, j, k;
+    for (i = 0; i < o.length; i++) { xs.push(o[i].x, o[i].x + o[i].w); }
+    xs.sort(function (a, b) { return a - b; });
+    var best = null, bestA = 0;
+    for (i = 0; i < xs.length; i++) {
+      var x1 = xs[i];
+      if (i && x1 - xs[i - 1] < EPS) continue;
+      for (j = i + 1; j < xs.length; j++) {
+        var x2 = xs[j], w = x2 - x1;
+        if (w < ms - EPS || x2 > UW + EPS) continue;
+        if (w * UH <= bestA) continue;
+        var cur = 0;
+        for (k = 0; k <= o.length; k++) {
+          var top, bottom;
+          if (k < o.length) {
+            if (o[k].x >= x2 - EPS || o[k].x + o[k].w <= x1 + EPS) continue;
+            top = o[k].y; bottom = o[k].y + o[k].h;
+          } else { top = UH; bottom = UH; }
+          var gap = top - cur;
+          if (gap >= ms - EPS && gap * w > bestA) { bestA = gap * w; best = { x: x1, y: cur, w: w, h: gap }; }
+          if (bottom > cur) cur = bottom;
+        }
+      }
+    }
+    return best;
+  }
+
+  // Can these rectangles be separated using only edge-to-edge (guillotine) cuts?
+  function guil(rs) {
+    if (rs.length <= 1) return true;
+    for (var axis = 0; axis < 2; axis++) {
+      var a = axis ? 'y' : 'x', d = axis ? 'h' : 'w';
+      for (var i = 0; i < rs.length; i++) {
+        var c = rs[i][a] + rs[i][d], A = [], B = [], ok = true;
+        for (var j = 0; j < rs.length; j++) {
+          var s = rs[j][a], e = s + rs[j][d];
+          if (e <= c + EPS) A.push(rs[j]);
+          else if (s >= c - EPS) B.push(rs[j]);
+          else { ok = false; break; }
+        }
+        if (ok && B.length) return guil(A) && guil(B);
+      }
+    }
+    return false;
+  }
+
+  function occupied(sh, kerf) {
+    return sh.placed.map(function (p) { return { x: p.x, y: p.y, w: p.w + kerf, h: p.h + kerf }; });
+  }
+
+  // Usable leftover rectangles of a sheet (kerf-enlarged), biggest first, each one reachable by guillotine cuts.
+  function leftovers(sh, kerf, ms, limit) {
+    var obs = occupied(sh, kerf), res = [];
+    for (var i = 0; i < limit; i++) {
+      var r = largestEmpty(obs, sh.UW, sh.UH, ms);
+      if (!r) break;
+      if (!sh.manual && !guil(obs.concat([r]))) {
+        if (!res.length) {
+          res = sh.free.filter(function (f) { return f.w >= ms - EPS && f.h >= ms - EPS; })
+            .sort(function (a, b) { return b.w * b.h - a.w * a.h; }).slice(0, limit);
+        }
+        break;
+      }
+      obs.push(r); res.push(r);
+    }
+    return res;
+  }
+
+  function newCount(sheets) { var n = 0; for (var i = 0; i < sheets.length; i++) if (!sheets[i].stock) n++; return n; }
+  // fewer NEW sheets first; then the biggest possible single leftover piece; then big leftovers on the other sheets
+  function cost(sheets, area, kerf) {
+    var mx = 0, sum = 0;
+    for (var i = 0; i < sheets.length; i++) {
+      var r = leftovers(sheets[i], kerf, kerf + 1, 1)[0];
+      var a = r ? Math.max(r.w - kerf, 0) * Math.max(r.h - kerf, 0) : 0;
+      if (a > mx) mx = a;
+      sum += a;
+    }
+    return newCount(sheets) - 0.9 * mx / area - 0.09 * sum / (area * Math.max(sheets.length, 1));
+  }
+
+  function optimise(items, bins, UW, UH, kerf, area, budget) {
+    var sorts = [
+      function (a, b) { return b.w * b.h - a.w * a.h; },
+      function (a, b) { return Math.max(b.w, b.h) - Math.max(a.w, a.h) || b.w * b.h - a.w * a.h; },
+      function (a, b) { return Math.min(b.w, b.h) - Math.min(a.w, a.h) || b.w * b.h - a.w * a.h; },
+      function (a, b) { return b.w - a.w || b.h - a.h; },
+      function (a, b) { return b.h - a.h || b.w - a.w; },
+      function (a, b) { return (b.w + b.h) - (a.w + a.h); }
+    ];
+    var best = null, bestCost = Infinity, bestNew = Infinity;
+    function tryIt(order, h, sp) {
+      var res = pack(order, bins, UW, UH, kerf, h, sp);
+      if (!res) return;
+      var nn = newCount(res);
+      if (nn > bestNew) return;
+      var c = cost(res, area, kerf);
+      if (c < bestCost) { bestCost = c; best = res; bestNew = nn; }
+    }
+    sorts.forEach(function (cmp) {
+      var order = items.slice().sort(cmp);
+      HEUR.forEach(function (h) { SPLITS.forEach(function (sp) { tryIt(order, h, sp); }); });
+    });
+    // randomised improvement for a limited time
+    var t0 = Date.now(), it = 0;
+    while (it++ < MAXIT && Date.now() - t0 < budget) {
+      var keyed = items.map(function (x) { return { it: x, k: x.w * x.h * (0.6 + 0.8 * Math.random()) }; });
+      keyed.sort(function (a, b) { return b.k - a.k; });
+      tryIt(keyed.map(function (k) { return k.it; }),
+        HEUR[Math.floor(Math.random() * HEUR.length)],
+        SPLITS[Math.floor(Math.random() * SPLITS.length)]);
+    }
+    return best;
+  }
+
+  // =====================================================================
+  // Calculation
+  // =====================================================================
+  function color(i, n) {
+    var hue = Math.round((i * 360 / Math.max(n, 1) + i * 23) % 360);
+    return 'hsl(' + hue + ' 62% 80%)';
+  }
+
+  // leftover rectangles of a sheet (real size, without the saw kerf), biggest first
+  function offcuts(sh) {
+    if (sh.off) return sh.off;
+    var k = sh.cfg.kerf, ms = Math.max(sh.cfg.minOff, 1) + k;
+    sh.off = leftovers(sh, k, ms, 30).map(function (f) {
+      return { x: f.x, y: f.y, w: f.w - k, h: f.h - k };
+    });
+    return sh.off;
+  }
+
+  function showErrors(errs) {
+    $('out').innerHTML = '<div class="error">' + esc(errs.join('\n')) + '</div>';
+  }
+
+  function calculate() {
+    save();
+    last = null;
+    var errs = [], v = {};
+    FIELDS.forEach(function (k) { v[k] = num($(k).value); });
+    var useStock = $('useStock').checked;
+    var kerf = v.kerf >= 0 ? v.kerf : 0, trim = v.trim >= 0 ? v.trim : 0, minOff = v.minOff >= 0 ? v.minOff : 0;
+
+    // 1. collect all parts
+    var raw = [], specs = [], hw = { slides: 0, hinges: 0, handles: 0 };
+    cabs.forEach(function (c, ci) {
+      var q = Math.floor(num(c.q)), cname = (c.name || '').trim() || ('კარადა ' + (ci + 1));
+      if (!(q > 0)) { errs.push('„' + cname + '“ — რაოდენობა არასწორია.'); return; }
+      var g = gen(c, v.gap);
+      if (g.errs.length) { g.errs.forEach(function (e) { errs.push('„' + cname + '“ — ' + e); }); return; }
+      specs.push({ name: cname, q: q, W: num(c.W), H: num(c.H), D: num(c.D), parts: g.parts, hw: g.hw, cab: clone(c) });
+      g.parts.forEach(function (p) {
+        raw.push({ name: cname + ' · ' + p.name, short: p.name, l: p.l, w: p.w, q: p.q * q, rot: !matById(p.mat).grain, el: p.el, ew: p.ew, matId: p.mat });
+      });
+      hw.slides += g.hw.slides * q; hw.hinges += g.hw.hinges * q; hw.handles += g.hw.handles * q;
+    });
+    readParts().forEach(function (p, idx) {
+      if (p.l === '' && p.w === '') return; // empty row
+      var l = num(p.l), w = num(p.w), q = Math.floor(num(p.q));
+      var label = p.name || ('დეტალი ' + (idx + 1));
+      if (!(l > 0) || !(w > 0)) { errs.push('„' + label + '“ — ზომები არასწორია.'); return; }
+      if (!(q > 0)) { errs.push('„' + label + '“ — რაოდენობა არასწორია.'); return; }
+      if (!matById(p.mat)) { errs.push('„' + label + '“ — აირჩიეთ მასალა.'); return; }
+      raw.push({ manual: true, name: label, short: label, l: l, w: w, q: q, rot: p.rot, el: parseInt(p.el, 10) || 0, ew: parseInt(p.ew, 10) || 0, matId: p.mat });
+    });
+    if (!errs.length && !raw.length) errs.push('დაამატეთ მინიმუმ ერთი კარადა ან დეტალი.');
+
+    // 2. materials actually used, in catalog order
+    var mats = [], idxOf = {}, files = {};
+    catalog.forEach(function (cm) {
+      if (!raw.some(function (r) { return r.matId === cm.id; })) return;
+      var name = cm.name || 'უსახელო მასალა', L = num(cm.L), W = num(cm.W), price = num(cm.price);
+      var m = { idx: mats.length, id: cm.id, name: name, L: L, W: W, price: price > 0 ? price : 0, grain: !!cm.grain };
+      var f = slug(name) || 'masala';
+      while (files[f]) f += '-' + (m.idx + 1);
+      files[f] = 1; m.file = f;
+      if (!(L > 0) || !(W > 0)) { errs.push('მასალას „' + name + '“ ფირფიტის ზომები არ აქვს მითითებული („მასალები“ ჩანართი).'); m.bad = true; }
+      else {
+        m.uw = L - 2 * trim; m.uh = W - 2 * trim;
+        if (m.uw <= 0 || m.uh <= 0) { errs.push('კიდის ჩამოჭრა ფირფიტის ზომაზე დიდია: „' + name + '“.'); m.bad = true; }
+      }
+      idxOf[cm.id] = m.idx;
+      mats.push(m);
+    });
+    var types = raw.map(function (r) { r.mat = idxOf[r.matId]; return r; }), count = 0;
+    types.forEach(function (ty) {
+      var m = mats[ty.mat];
+      count += ty.q;
+      if (m.bad) return;
+      var fits = (ty.l <= m.uw + EPS && ty.w <= m.uh + EPS) || (ty.rot && ty.w <= m.uw + EPS && ty.l <= m.uh + EPS);
+      if (!fits) errs.push('„' + ty.name + '“ (' + fmt(ty.l) + '×' + fmt(ty.w) + ') არ ეტევა ფირფიტაზე „' + m.name + '“ (' +
+        fmt(m.L) + '×' + fmt(m.W) + ')' + (ty.rot ? '.' : ' — მასალას ტექსტურა აქვს, დეტალი ვერ შებრუნდება.'));
+    });
+    if (count > 5000) errs.push('დეტალების რაოდენობა ძალიან დიდია (მაქს. 5000).');
+    if (errs.length) { showErrors(errs); return; }
+
+    // 3. pack every material: stock pieces first, then new sheets
+    types.forEach(function (ty, i) { ty.color = color(i, types.length); });
+    var cutMm = 0, edgeMm = 0;
+    mats.forEach(function (m) {
+      var items = [];
+      types.forEach(function (ty, id) {
+        if (ty.mat !== m.idx) return;
+        for (var i = 0; i < ty.q; i++) items.push({ id: id, w: ty.l, h: ty.w, rot: ty.rot });
+      });
+      var bins = [];
+      if (useStock) stock.forEach(function (s) {
+        var L = num(s.L), W = num(s.W), q = Math.floor(num(s.q));
+        if (s.mat !== m.id || !(L > 0) || !(W > 0)) return;
+        for (var i = 0; i < q && bins.length < 200; i++) bins.push({ sid: s.id, L: L, W: W });
+      });
+      bins.sort(function (a, b) { return a.L * a.W - b.L * b.W; }); // small leftovers are used up first
+      m.cfg = { L: m.L, W: m.W, trim: trim, kerf: kerf, minOff: minOff };
+      var sheets = optimise(items, bins, m.uw + kerf, m.uh + kerf, kerf, m.L * m.W, items.length > 12 ? 1400 : 500);
+      sheets.forEach(function (s) {
+        s.cfg = s.stock ? { L: s.stock.L, W: s.stock.W, trim: 0, kerf: kerf, minOff: minOff } : m.cfg;
+        s.mat = m.idx;
+        cutMm += s.cut;
+        if (!s.stock && trim > 0) cutMm += 2 * (m.L + m.W);
+      });
+      // quick check: would allowing rotation save new sheets?
+      if (m.grain && items.some(function (x) { return !x.rot; })) {
+        var free = optimise(items.map(function (x) { return { id: x.id, w: x.w, h: x.h, rot: true }; }), bins, m.uw + kerf, m.uh + kerf, kerf, m.L * m.W, 0);
+        if (free && newCount(free) < newCount(sheets)) m.altN = newCount(free);
+      }
+      // group identical layouts
+      var bySig = {};
+      m.groups = [];
+      sheets.forEach(function (s) {
+        var sig = (s.stock ? 'S' + s.stock.L + 'x' + s.stock.W : 'N') + '|' +
+          s.placed.map(function (p) { return [p.x, p.y, p.w, p.h, p.id].join(','); }).sort().join(';');
+        if (bySig[sig]) bySig[sig].sheets.push(s);
+        else { bySig[sig] = { sheet: s, sheets: [s], mat: m.idx }; m.groups.push(bySig[sig]); }
+      });
+      m.groups.sort(function (a, b) { return (a.sheet.stock ? 0 : 1) - (b.sheet.stock ? 0 : 1) || b.sheet.used - a.sheet.used; });
+    });
+    types.forEach(function (ty) { edgeMm += ty.q * (ty.el * ty.l + ty.ew * ty.w); });
+    var pr = function (k) { return v[k] > 0 ? v[k] : 0; };
+    last = { kerf: kerf, trim: trim, minOff: minOff, mats: mats, types: types, specs: specs, hw: hw, groups: [],
+      count: count, cutM: cutMm / 1000, edgeM: edgeMm / 1000, rows: [], total: 0, offRows: [], sel: null, committed: false,
+      stockMin: v.stockMin >= 0 ? v.stockMin : 200, offToggle: {},
+      price: { cut: pr('priceCut'), edge: pr('priceEdge'), slide: pr('priceSlide'), hinge: pr('priceHinge'), handle: pr('priceHandle') } };
+    render();
+  }
+
+  // Rebuilds sheet numbering, sheet counts and the price table from the current state of the sheets
+  // (pieces may have been moved between sheets by hand, sheets may have appeared or become empty).
+  function totals(d) {
+    d.groups = [];
+    d.mats.forEach(function (m) {
+      m.groups = m.groups.filter(function (g) {
+        g.sheets = g.sheets.filter(function (s) { return s.placed.length > 0; });
+        g.sheet = g.sheets[0];
+        return g.sheets.length > 0;
+      });
+      m.sheets = []; m.usedArea = 0; m.area = 0; m.n = 0; m.nStock = 0;
+      m.groups.forEach(function (g) {
+        var k = g.sheets.length, st = !!g.sheet.stock, c = g.sheet.cfg;
+        g.from = (st ? m.nStock : m.n) + 1; g.to = g.from + k - 1;
+        if (st) m.nStock += k; else m.n += k;
+        var range = k > 1 ? g.from + '-' + g.to : String(g.from);
+        g.label = st ? 'ნაშთი ' + range : range;
+        g.title = st ? 'ნაშთი ' + range + ' (' + fmt(c.L) + '×' + fmt(c.W) + ')' : 'ფირფიტა ' + range;
+        g.file = m.file + (st ? '_nashti-' + range + '_' + fmt(c.L) + 'x' + fmt(c.W) : '_firfita-' + range) + (k > 1 ? '_x' + k : '') + '.dxf';
+        g.sheets.forEach(function (s) { m.sheets.push(s); m.usedArea += s.used; m.area += s.cfg.L * s.cfg.W; });
+        d.groups.push(g);
+      });
+    });
+    var rows = [], total = 0, pr = d.price, hw = d.hw;
+    var add = function (label, qty, unit, price) { var s = qty * price; total += s; rows.push([label, qty, unit, price, s]); };
+    d.mats.forEach(function (m) {
+      add(m.name + ' — ახალი ფირფიტა ' + fmt(m.L) + '×' + fmt(m.W), m.n, 'ც', m.price);
+      if (m.nStock) add(m.name + ' — ნაშთიდან', m.nStock, 'ნაჭერი', 0);
+    });
+    add('ჭრა', d.cutM, 'მ', pr.cut);
+    add('კრომკა', d.edgeM, 'მ', pr.edge);
+    if (hw.slides) add('უჯრის სალასკა', hw.slides, 'წყვილი', pr.slide);
+    if (hw.hinges) add('პეტლი', hw.hinges, 'ც', pr.hinge);
+    if (hw.handles) add('ხელისმოსაკიდი', hw.handles, 'ც', pr.handle);
+    d.rows = rows; d.total = total;
+    if (d.sel && !d.groups.some(function (g) { return g.sheets.indexOf(d.sel.sheet) >= 0; })) d.sel = null;
+  }
+  function isSel(p) { return !!(last && last.sel && last.sel.piece === p); }
+
+  // =====================================================================
+  // Rendering
+  // =====================================================================
+  function sheetSvg(sh, types, maxW) {
+    var cfg = sh.cfg, L = cfg.L, W = cfg.W, t = cfg.trim;
+    var sw = Math.max(L, W) / 700 * Math.max(680 / maxW, 1);
+    var out = '<svg viewBox="0 0 ' + L + ' ' + W + '" style="max-width:' + Math.round(maxW) + 'px" xmlns="http://www.w3.org/2000/svg">';
+    out += '<defs><pattern id="hatch" width="' + sw * 14 + '" height="' + sw * 14 + '" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">' +
+      '<line x1="0" y1="0" x2="0" y2="' + sw * 14 + '" stroke="#cfc9be" stroke-width="' + sw * 2 + '"/></pattern></defs>';
+    out += '<rect width="' + L + '" height="' + W + '" fill="url(#hatch)"/>';
+    if (t > 0) out += '<rect x="' + t + '" y="' + t + '" width="' + (L - 2 * t) + '" height="' + (W - 2 * t) +
+      '" fill="none" stroke="#a09a90" stroke-width="' + sw + '" stroke-dasharray="' + sw * 6 + ' ' + sw * 5 + '"/>';
+    var big = Math.max(L, W) * Math.max(680 / maxW, 1); // keeps text the same size on screen for small stock pieces
+    offcuts(sh).forEach(function (o) {
+      var x = o.x + t, y = o.y + t;
+      out += '<rect x="' + x + '" y="' + y + '" width="' + o.w + '" height="' + o.h +
+        '" fill="#f3faf4" stroke="#2f7d4f" stroke-width="' + sw * 1.3 + '" stroke-dasharray="' + sw * 7 + ' ' + sw * 4 + '"/>';
+      var dims = fmt(o.w) + '×' + fmt(o.h);
+      var vertical = o.h > o.w * 1.3;
+      var along = vertical ? o.h : o.w, across = vertical ? o.w : o.h;
+      var fs = Math.min(big / 46, across * 0.42, along / (dims.length * 0.62));
+      if (fs < big / 190) return;
+      var cx = x + o.w / 2, cy = y + o.h / 2;
+      var showTag = across > fs * 2.6 && along > fs * 6;
+      out += '<g' + (vertical ? ' transform="rotate(-90 ' + cx + ' ' + cy + ')"' : '') +
+        ' font-family="Segoe UI, Sylfaen, sans-serif" text-anchor="middle" fill="#2f7d4f" font-style="italic">';
+      if (showTag) out += '<text x="' + cx + '" y="' + (cy - fs * 0.25) + '" font-size="' + fs * 0.8 + '">ნარჩენი</text>';
+      out += '<text x="' + cx + '" y="' + (cy + fs * (showTag ? 0.95 : 0.35)) + '" font-size="' + fs + '">' + dims + '</text></g>';
+    });
+    sh.placed.forEach(function (p, pi) {
+      var ty = types[p.id], x = p.x + t, y = p.y + t;
+      out += '<g class="piece" data-i="' + pi + '"><title>' + esc(ty.name) + ' — ' + fmt(p.w) + '×' + fmt(p.h) + '</title>' +
+        '<rect x="' + x + '" y="' + y + '" width="' + p.w + '" height="' + p.h + '" fill="' + ty.color +
+        '" stroke="' + (isSel(p) ? '#b4541a' : '#3a3a3a') + '" stroke-width="' + (isSel(p) ? sw * 4.5 : sw) + '"/>';
+      var dims = fmt(p.w) + '×' + fmt(p.h);
+      var vertical = p.h > p.w * 1.3;
+      var along = vertical ? p.h : p.w, across = vertical ? p.w : p.h;
+      var fs = Math.min(big / 38, across * 0.42, along / (dims.length * 0.62));
+      if (fs < big / 190) { out += '</g>'; return; }
+      var cx = x + p.w / 2, cy = y + p.h / 2;
+      var name = ty.short;
+      var showName = name && across > fs * 2.6 && along > name.length * fs * 0.6;
+      out += '<g' + (vertical ? ' transform="rotate(-90 ' + cx + ' ' + cy + ')"' : '') +
+        ' font-family="Segoe UI, Sylfaen, sans-serif" text-anchor="middle" fill="#1f2428">';
+      if (showName) {
+        out += '<text x="' + cx + '" y="' + (cy - fs * 0.25) + '" font-size="' + fs * 0.85 + '">' + esc(name) + '</text>';
+        out += '<text x="' + cx + '" y="' + (cy + fs * 0.95) + '" font-size="' + fs + '" font-weight="600">' + dims + '</text>';
+      } else {
+        out += '<text x="' + cx + '" y="' + (cy + fs * 0.35) + '" font-size="' + fs + '" font-weight="600">' + dims + '</text>';
+      }
+      out += '</g></g>';
+    });
+    return out + '</svg>';
+  }
+
+  // toolbar shown above the drawing that holds the selected piece
+  function toolbar(d, g) {
+    var s = d.sel;
+    if (!s || g.sheet !== s.sheet) return '';
+    var ty = d.types[s.piece.id], o = '';
+    d.groups.forEach(function (g2, i) {
+      if (g2.mat === g.mat && g2 !== g) o += '<option value="' + i + '">' + esc(g2.title) + '</option>';
+    });
+    return '<div class="tools noprint"><span>არჩეულია: <b>' + esc(ty.name) + '</b> ' + fmt(s.piece.w) + '×' + fmt(s.piece.h) + '</span>' +
+      '<button data-act="rot">↻ შებრუნება 90°</button>' +
+      '<select data-act="move"><option value="">გადატანა სხვა ფირფიტაზე…</option>' + o +
+      '<option value="new">+ ახალ ფირფიტაზე</option></select>' +
+      '<button class="del" data-act="clear" title="არჩევის გაუქმება">✕</button></div>';
+  }
+
+  function qtyText(r) { return (r[2] === 'მ' ? r[1].toFixed(1) : r[1]) + ' ' + r[2]; }
+
+  // draws everything from the stored result; called again after a piece is moved by hand
+  function render() {
+    var d = last, out = $('out');
+    totals(d);
+    var m2 = function (a) { return (a / 1e6).toFixed(2); };
+    var usedArea = 0, totalArea = 0;
+    d.mats.forEach(function (m) { usedArea += m.usedArea; totalArea += m.area; });
+
+    var html = '<div class="stats">';
+    d.mats.forEach(function (m) {
+      html += '<div class="stat big"><b>' + m.n + '</b><span>ახალი ფირფიტა — ' + esc(m.name) +
+        (m.nStock ? ' · ნაშთიდან ' + m.nStock + ' ნაჭერი' : '') + '</span></div>';
+    });
+    html += '<div class="stat"><b>' + d.count + '</b><span>დეტალი სულ</span></div>' +
+      '<div class="stat"><b>' + (usedArea / totalArea * 100).toFixed(1) + '%</b><span>მასალის გამოყენება</span></div>' +
+      (d.total > 0 ? '<div class="stat big"><b>' + d.total.toFixed(2) + ' ₾</b><span>ჯამური ღირებულება</span></div>' : '') +
+      '</div>';
+
+    // price calculation
+    html += '<div class="panel"><h2>ღირებულების კალკულაცია</h2><table class="tbl"><thead><tr><th>პოზიცია</th><th class="r">რაოდენობა</th>' +
+      '<th class="r">ფასი, ₾</th><th class="r">ჯამი, ₾</th></tr></thead><tbody>';
+    d.rows.forEach(function (r) {
+      html += '<tr><td>' + esc(r[0]) + '</td><td class="r">' + qtyText(r) + '</td><td class="r">' + r[3].toFixed(2) +
+        '</td><td class="r">' + r[4].toFixed(2) + '</td></tr>';
+    });
+    html += '<tr class="total"><td colspan="3">სულ</td><td class="r">' + d.total.toFixed(2) + ' ₾</td></tr></tbody></table>' +
+      (d.total > 0 ? '' : '<p class="hint noprint">ღირებულების დასათვლელად შეავსეთ მასალების ფასები („მასალები“ ჩანართი) და ფურნიტურის ფასები მარცხნივ.</p>');
+    d.mats.forEach(function (m) {
+      if (m.altN != null && m.altN < m.n) html += '<p class="hint" style="color:#8c1d13">ეკონომიის შესაძლებლობა: თუ მასალას „' + esc(m.name) +
+        '“ მოუხსნით „ტექსტურას“ („მასალები“ ჩანართი), ' + m.altN + ' ახალი ფირფიტა იქნება საკმარისი ' + m.n + '-ის ნაცვლად' +
+        (m.price > 0 ? ' (დანაზოგი ' + ((m.n - m.altN) * m.price).toFixed(2) + ' ₾)' : '') + '.</p>';
+    });
+    html += '<p class="hint">მასალა ითვლება მთლიანი ახალი ფირფიტებით (მინიმალური საჭირო რაოდენობა); ნაშთიდან აღებული ნაჭრები უფასოა. ' +
+      'ჭრის მეტრაჟი მიახლოებითია — დათვლილია საწყისი განლაგების ჭრების ჯამური სიგრძით.</p></div>';
+
+    // cabinet specification
+    if (d.specs.length) {
+      html += '<details class="panel" open><summary><h2>კარადების დეტალები</h2></summary>';
+      d.specs.forEach(function (s) {
+        html += '<h4>' + esc(s.name) + (s.q > 1 ? ' × ' + s.q : '') + ' — ' + fmt(s.W) + '×' + fmt(s.H) + '×' + fmt(s.D) + ' მმ (სიგანე×სიმაღლე×სიღრმე)</h4>' +
+          '<table class="tbl"><thead><tr><th>დეტალი</th><th>ზომა, მმ</th><th class="r">რაოდ.</th><th>მასალა</th></tr></thead><tbody>';
+        s.parts.forEach(function (p) {
+          var cm = matById(p.mat);
+          html += '<tr><td>' + esc(p.name) + '</td><td>' + fmt(p.l) + ' × ' + fmt(p.w) + '</td><td class="r">' + p.q * s.q +
+            '</td><td>' + esc(cm ? cm.name : '') + '</td></tr>';
+        });
+        html += '</tbody></table><p class="hint">ფურნიტურა: პეტლი — ' + s.hw.hinges * s.q + ' ც, სალასკა — ' + s.hw.slides * s.q +
+          ' წყვილი, ხელისმოსაკიდი — ' + s.hw.handles * s.q + ' ც.</p>';
+      });
+      html += '</details>';
+    }
+
+    // sheets
+    var offRows = [], usedStock = 0;
+    d.groups.forEach(function (g, gi) {
+      var m = d.mats[g.mat], sh = g.sheet, c = sh.cfg, k = g.sheets.length;
+      if (sh.stock) usedStock += k;
+      html += '<div class="panel sheet' + (sh.stock ? ' isstock' : '') + '" data-g="' + gi + '"><h3><span>' + esc(m.name) + ' — ' + esc(g.title) +
+        (k > 1 ? ' <small>(' + k + ' ერთნაირი)</small>' : '') + '</span><small>' + sh.placed.length + ' დეტალი · გამოყენება ' +
+        (sh.used / (c.L * c.W) * 100).toFixed(1) + '%</small></h3>' + toolbar(d, g) +
+        sheetSvg(sh, d.types, Math.max(170, Math.min(680, 680 * c.L / m.L))) +
+        (sh.manual && !guil(occupied(sh, d.kerf))
+          ? '<p class="hint" style="color:#8c1d13">ყურადღება: ხელით შეცვლილი განლაგება მხოლოდ გამჭოლი (კიდიდან კიდემდე) ჭრებით ვერ დაიჭრება.</p>' : '') +
+        '</div>';
+      offcuts(sh).forEach(function (o, oi) {
+        var key = m.id + '|' + g.label + '|' + oi + '|' + fmt(o.w) + 'x' + fmt(o.h);
+        // keep = goes to stock when the order is finished; small strips are left out unless the user ticks them
+        offRows.push({ mat: m.name, matId: m.id, sheet: g.label, w: o.w, h: o.h, n: k, key: key,
+          keep: d.offToggle[key] != null ? d.offToggle[key] : Math.min(o.w, o.h) >= d.stockMin });
+      });
+    });
+
+    // leftover pieces
+    html += '<div class="panel"><h2>დარჩენილი ნაწილები</h2>';
+    var offCount = 0;
+    if (!offRows.length) {
+      html += '<p class="hint">' + fmt(d.minOff) + ' მმ-ზე განიერი სასარგებლო ნარჩენი არ რჩება.</p>';
+    } else {
+      var offArea = 0;
+      html += '<table class="tbl"><thead><tr><th>მასალა</th><th>ფირფიტა №</th><th>ზომა, მმ</th><th class="r">რაოდ.</th><th class="r">ფართობი, მ²</th>' +
+        '<th class="noprint" title="მონიშნული ნაჭრები შეკვეთის დასრულებისას ნაშთში გადავა">ნაშთში შენახვა</th></tr></thead><tbody>';
+      offRows.forEach(function (o) {
+        offArea += o.w * o.h * o.n;
+        if (o.keep) offCount += o.n;
+        html += '<tr><td>' + esc(o.mat) + '</td><td>' + esc(o.sheet) + '</td><td>' + fmt(o.w) + ' × ' + fmt(o.h) + '</td><td class="r">' + o.n +
+          '</td><td class="r">' + m2(o.w * o.h * o.n) + '</td><td class="c noprint"><input type="checkbox" data-off="' + esc(o.key) + '"' +
+          (o.keep ? ' checked' : '') + (d.committed ? ' disabled' : '') + '></td></tr>';
+      });
+      html += '<tr class="total"><td colspan="4">სულ სასარგებლო ნარჩენი</td><td class="r">' + m2(offArea) + '</td><td class="noprint"></td></tr></tbody></table>' +
+        '<p class="hint">ეს არის ფირფიტებზე დარჩენილი ცარიელი ადგილები (ნახაზზე მწვანე წყვეტილი ჩარჩოებით) — კარადის დეტალები აქ არ შედის. ' +
+        'ზომა ხშირად ემთხვევა მეზობელი დეტალის ერთ გვერდს, რადგან ნარჩენი მის გასწვრივ დარჩენილი ზოლია.</p>';
+    }
+    html += '</div>';
+
+    // stock update
+    html += '<div class="panel noprint"><h2>ნაშთის განახლება</h2>' + (d.committed
+      ? '<p class="hint" style="margin-top:0">ნაშთი ამ შეკვეთისთვის უკვე განახლებულია — იხილეთ „ნაშთი“ ჩანართი.</p>'
+      : '<p class="hint" style="margin-top:0">როცა შეკვეთას რეალურად დაჭრით, დააჭირეთ ღილაკს: ნაშთიდან ჩამოიწერება გამოყენებული ' + usedStock +
+        ' ნაჭერი და დაემატება ზემოთ ცხრილში მონიშნული ' + offCount + ' დარჩენილი ნაჭერი. ' +
+        'ავტომატურად მონიშნულია ის ნაჭრები, რომელთა ორივე გვერდი ' + fmt(d.stockMin) + ' მმ-ზე მეტია; მონიშვნა შეგიძლიათ თავად შეცვალოთ.</p>' +
+        '<div class="row"><button data-act="commit">შეკვეთის დასრულება — ნაშთის განახლება</button></div>') + '</div>';
+
+    html += '<p class="hint noprint">დეტალი შეგიძლიათ ნახაზზე თაგვით გადაათრიოთ — ის ეკვრის სხვა დეტალების და ფირფიტის კიდეებს; სხვა ფირფიტის ნახაზზე გადათრევით დეტალი იმ ფირფიტაზე გადადის. ' +
+      'დეტალზე დაწკაპუნებით ის აირჩევა და ნახაზის თავზე ჩნდება ღილაკები: შებრუნება 90°-ით და სხვა (ან ახალ) ფირფიტაზე გადატანა. საწყის განლაგებას აბრუნებს „გამოთვლა“.</p>';
+    html += '<p class="hint noprint">განლაგება გათვლილია გამჭოლი (გილიოტინური) ჭრებისთვის. მწვანე წყვეტილი ჩარჩოთი ნაჩვენებია დარჩენილი ნაწილები, მწვანე ჩარჩოიანი ბარათები — ნაშთის ნაჭრებია. ' +
+      'დეტალებს შორის გათვალისწინებულია ჭრილის სისქე ' + fmt(d.kerf) + ' მმ.</p>';
+    out.innerHTML = html;
+    d.offRows = offRows;
+    attachDrag();
+  }
+
+  // =====================================================================
+  // Stock update after an order is really cut
+  // =====================================================================
+  function commitOrder() {
+    var d = last;
+    if (!d || d.committed) return false;
+    d.groups.forEach(function (g) {
+      g.sheets.forEach(function (s) {
+        if (!s.stock) return;
+        for (var i = 0; i < stock.length; i++) {
+          if (stock[i].id !== s.stock.sid) continue;
+          stock[i].q = (Math.floor(num(stock[i].q)) || 0) - 1;
+          if (stock[i].q <= 0) stock.splice(i, 1);
+          break;
+        }
+      });
+    });
+    // only the empty leftover rectangles the user kept ticked go to stock (never cabinet parts)
+    d.offRows.forEach(function (o) { if (o.keep) addStockPiece(o.matId, o.w, o.h, o.n); });
+    d.committed = true;
+    renderStock();
+    save();
+    return true;
+  }
+
+  // =====================================================================
+  // Moving pieces by hand
+  // =====================================================================
+  function overlaps(sh, p, x, y, w, h) {
+    var k = sh.cfg.kerf;
+    for (var i = 0; i < sh.placed.length; i++) {
+      var q = sh.placed[i];
+      if (q === p) continue;
+      if (x < q.x + q.w + k - EPS && x + w + k > q.x + EPS && y < q.y + q.h + k - EPS && y + h + k > q.y + EPS) return true;
+    }
+    return false;
+  }
+  function snapAxis(v, cands, th) {
+    var best = v, bd = th;
+    for (var i = 0; i < cands.length; i++) {
+      var dd = Math.abs(cands[i] - v);
+      if (dd < bd) { bd = dd; best = cands[i]; }
+    }
+    return best;
+  }
+  function snap(sh, p, x, y, th) {
+    var c = sh.cfg, k = c.kerf, uw = c.L - 2 * c.trim, uh = c.W - 2 * c.trim;
+    var cx = [0, uw - p.w], cy = [0, uh - p.h];
+    sh.placed.forEach(function (q) {
+      if (q === p) return;
+      cx.push(q.x + q.w + k, q.x - k - p.w, q.x, q.x + q.w - p.w);
+      cy.push(q.y + q.h + k, q.y - k - p.h, q.y, q.y + q.h - p.h);
+    });
+    x = snapAxis(x, cx, th); y = snapAxis(y, cy, th);
+    x = Math.round(Math.min(Math.max(x, 0), uw - p.w) * 10) / 10;
+    y = Math.round(Math.min(Math.max(y, 0), uh - p.h) * 10) / 10;
+    return { x: x, y: y };
+  }
+  function groupOf(sh) {
+    for (var i = 0; i < last.groups.length; i++) if (last.groups[i].sheets.indexOf(sh) >= 0) return last.groups[i];
+    return null;
+  }
+  // a sheet changed by hand stops being "identical" to the other sheets of its group
+  function isolate(sh) {
+    var g = groupOf(sh);
+    if (!g || g.sheets.length < 2) return;
+    var m = last.mats[g.mat], rest = g.sheets.filter(function (s) { return s !== sh; });
+    g.sheets = [sh]; g.sheet = sh;
+    m.groups.splice(m.groups.indexOf(g) + 1, 0, { sheet: rest[0], sheets: rest, mat: g.mat });
+  }
+  function touched(sh) { isolate(sh); sh.manual = true; sh.off = null; sh.free = []; }
+
+  // first free place for a w x h rectangle on a sheet (top-left first); "ignore" is a piece to leave out
+  function findSpot(sh, w, h, ignore) {
+    var c = sh.cfg, k = c.kerf, uw = c.L - 2 * c.trim, uh = c.W - 2 * c.trim, xs = [0], ys = [0], i, j;
+    sh.placed.forEach(function (q) {
+      if (q === ignore) return;
+      xs.push(q.x + q.w + k); ys.push(q.y + q.h + k);
+    });
+    var asc = function (a, b) { return a - b; };
+    xs.sort(asc); ys.sort(asc);
+    for (i = 0; i < ys.length; i++) {
+      for (j = 0; j < xs.length; j++) {
+        if (xs[j] + w <= uw + EPS && ys[i] + h <= uh + EPS && !overlaps(sh, ignore, xs[j], ys[i], w, h)) return { x: xs[j], y: ys[i] };
+      }
+    }
+    return null;
+  }
+
+  // turn a piece by 90 degrees: in place if it fits there, otherwise at the first free place of the same sheet
+  function rotatePiece(sh, p) {
+    if (p.w === p.h) return false;
+    var c = sh.cfg, uw = c.L - 2 * c.trim, uh = c.W - 2 * c.trim, pos = null;
+    if (p.h <= uw + EPS && p.w <= uh + EPS) {
+      var x = Math.max(Math.min(p.x, uw - p.h), 0), y = Math.max(Math.min(p.y, uh - p.w), 0);
+      pos = overlaps(sh, p, x, y, p.h, p.w) ? findSpot(sh, p.h, p.w, p) : { x: x, y: y };
+    }
+    if (!pos) {
+      alert('შებრუნებული დეტალი ამ ფირფიტაზე არ ეტევა — გაათავისუფლეთ ადგილი ან გადაიტანეთ დეტალი სხვა ფირფიტაზე.');
+      return false;
+    }
+    touched(sh);
+    var w = p.w; p.w = p.h; p.h = w; p.x = pos.x; p.y = pos.y; p.rotated = !p.rotated;
+    return true;
+  }
+
+  // move a piece to another sheet of the same material (target = null: a new full sheet).
+  // x, y: wanted position on the target (optional); otherwise the first free place is used.
+  function movePiece(sh, p, target, x, y, th) {
+    if (target === sh) return false;
+    if (target && target.mat !== sh.mat) { alert('დეტალის გადატანა მხოლოდ იმავე მასალის ფირფიტაზე შეიძლება.'); return false; }
+    var m = last.mats[sh.mat], isNew = !target, w = p.w, h = p.h, pos = null, turned = false;
+    if (isNew) target = { free: [], placed: [], used: 0, cut: 0, UW: m.uw + last.kerf, UH: m.uh + last.kerf, stock: null, cfg: m.cfg, mat: sh.mat, manual: true };
+    if (x != null) {
+      var s = snap(target, { w: w, h: h }, x, y, th || 0), c = target.cfg;
+      if (w <= c.L - 2 * c.trim + EPS && h <= c.W - 2 * c.trim + EPS && !overlaps(target, null, s.x, s.y, w, h)) pos = s;
+    }
+    if (!pos) pos = findSpot(target, w, h, null);
+    if (!pos && w !== h && last.types[p.id].rot) {
+      pos = findSpot(target, h, w, null);
+      turned = !!pos;
+    }
+    if (!pos) { alert('ამ ფირფიტაზე დეტალისთვის თავისუფალი ადგილი არ არის.'); return false; }
+    touched(sh);
+    if (!isNew) touched(target);
+    sh.placed.splice(sh.placed.indexOf(p), 1);
+    sh.used -= p.w * p.h;
+    if (turned) { p.w = h; p.h = w; p.rotated = !p.rotated; }
+    p.x = pos.x; p.y = pos.y;
+    target.placed.push(p);
+    target.used += p.w * p.h;
+    if (isNew) m.groups.push({ sheet: target, sheets: [target], mat: sh.mat });
+    if (last.sel && last.sel.piece === p) last.sel.sheet = target;
+    return true;
+  }
+
+  function attachDrag() {
+    Array.prototype.forEach.call(document.querySelectorAll('#out .sheet[data-g]'), function (panel) {
+      var sh = last.groups[+panel.getAttribute('data-g')].sheet, svg = panel.querySelector('svg');
+      Array.prototype.forEach.call(svg.querySelectorAll('.piece'), function (el) {
+        var p = sh.placed[+el.getAttribute('data-i')];
+        el.addEventListener('pointerdown', function (e) {
+          if (e.button) return;
+          e.preventDefault();
+          var rect = svg.getBoundingClientRect(), scale = sh.cfg.L / (rect.width || 1), t = sh.cfg.trim;
+          var sx = e.clientX, sy = e.clientY, nx = p.x, ny = p.y, moved = false, inside = true;
+          var offX = (sx - rect.left) * scale - t - p.x, offY = (sy - rect.top) * scale - t - p.y;
+          function move(ev) {
+            if (!moved && Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 4) return;
+            if (!moved) { moved = true; panel.classList.add('dragging'); el.style.pointerEvents = 'none'; }
+            inside = ev.clientX >= rect.left && ev.clientX <= rect.right && ev.clientY >= rect.top && ev.clientY <= rect.bottom;
+            if (inside) {
+              var pos = snap(sh, p, p.x + (ev.clientX - sx) * scale, p.y + (ev.clientY - sy) * scale, 10 * scale);
+              nx = pos.x; ny = pos.y;
+              el.setAttribute('transform', 'translate(' + (nx - p.x) + ' ' + (ny - p.y) + ')');
+              el.style.opacity = overlaps(sh, p, nx, ny, p.w, p.h) ? 0.35 : 0.85;
+            } else { // on the way to another sheet: follow the pointer freely
+              el.setAttribute('transform', 'translate(' + (ev.clientX - sx) * scale + ' ' + (ev.clientY - sy) * scale + ')');
+              el.style.opacity = 0.7;
+            }
+          }
+          function up(ev) {
+            window.removeEventListener('pointermove', move);
+            window.removeEventListener('pointerup', up);
+            window.removeEventListener('pointercancel', up);
+            panel.classList.remove('dragging');
+            if (!moved) { // plain click: select the piece
+              if (ev.type === 'pointerup') { last.sel = { sheet: sh, piece: p }; render(); }
+              return;
+            }
+            if (ev.type === 'pointerup') {
+              var hit = document.elementFromPoint(ev.clientX, ev.clientY);
+              var tp = hit && hit.closest ? hit.closest('.sheet[data-g]') : null;
+              if (tp && tp !== panel) {
+                var tsh = last.groups[+tp.getAttribute('data-g')].sheet;
+                var r2 = tp.querySelector('svg').getBoundingClientRect(), s2 = tsh.cfg.L / (r2.width || 1);
+                movePiece(sh, p, tsh, (ev.clientX - r2.left) * s2 - tsh.cfg.trim - offX, (ev.clientY - r2.top) * s2 - tsh.cfg.trim - offY, 10 * s2);
+              } else if (inside && !overlaps(sh, p, nx, ny, p.w, p.h) && (nx !== p.x || ny !== p.y)) {
+                touched(sh);
+                p.x = nx; p.y = ny;
+              }
+            }
+            render();
+          }
+          window.addEventListener('pointermove', move);
+          window.addEventListener('pointerup', up);
+          window.addEventListener('pointercancel', up);
+        });
+      });
+    });
+  }
+  $('out').addEventListener('click', function (e) {
+    var act = e.target.getAttribute && e.target.getAttribute('data-act');
+    if (!act || !last) return;
+    if (act === 'commit') {
+      if (confirm('განახლდეს ნაშთი ამ შეკვეთის მიხედვით? გამოყენებული ნაჭრები ჩამოიწერება და დარჩენილი ნაწილები დაემატება.') && commitOrder()) render();
+    } else if (!last.sel) return;
+    else if (act === 'rot') { if (rotatePiece(last.sel.sheet, last.sel.piece)) render(); }
+    else if (act === 'clear') { last.sel = null; render(); }
+  });
+  $('out').addEventListener('change', function (e) {
+    var offKey = e.target.getAttribute && e.target.getAttribute('data-off');
+    if (offKey && last && !last.committed) { last.offToggle[offKey] = e.target.checked; render(); return; }
+    if (!e.target.getAttribute || e.target.getAttribute('data-act') !== 'move' || !last || !last.sel || e.target.value === '') return;
+    var target = e.target.value === 'new' ? null : last.groups[+e.target.value].sheet;
+    if (movePiece(last.sel.sheet, last.sel.piece, target)) render(); else e.target.value = '';
+  });
+
+  // =====================================================================
+  // DXF export (ASCII DXF R12, millimetres), one file per sheet layout.
+  // Layers: SHEET = full sheet, TRIM = usable area, PARTS = pieces to cut, OFFCUTS = leftovers, TEXT = labels.
+  // =====================================================================
+  function buildDxf(list) {
+    var d = last, o = [], ox = 0;
+    list = list || d.groups;
+    function w() { for (var i = 0; i < arguments.length; i++) o.push(arguments[i]); }
+    function n(v) { return String(Math.round(v * 1000) / 1000); }
+    function asc(s) { // DXF R12 is ASCII: other characters go in as \U+XXXX
+      return String(s).replace(/[^\x20-\x7e]/g, function (ch) {
+        return '\\U+' + ('0000' + ch.charCodeAt(0).toString(16).toUpperCase()).slice(-4);
+      });
+    }
+    var LAYERS = [['SHEET', 7], ['TRIM', 8], ['PARTS', 1], ['OFFCUTS', 3], ['TEXT', 5]];
+    w(0, 'SECTION', 2, 'HEADER', 9, '$ACADVER', 1, 'AC1009', 0, 'ENDSEC');
+    w(0, 'SECTION', 2, 'TABLES');
+    w(0, 'TABLE', 2, 'LTYPE', 70, 1, 0, 'LTYPE', 2, 'CONTINUOUS', 70, 64, 3, 'Solid line', 72, 65, 73, 0, 40, '0.0', 0, 'ENDTAB');
+    w(0, 'TABLE', 2, 'LAYER', 70, LAYERS.length);
+    LAYERS.forEach(function (l) { w(0, 'LAYER', 2, l[0], 70, 0, 62, l[1], 6, 'CONTINUOUS'); });
+    w(0, 'ENDTAB', 0, 'ENDSEC', 0, 'SECTION', 2, 'ENTITIES');
+    function rect(layer, x, y, ww, hh) {
+      w(0, 'POLYLINE', 8, layer, 66, 1, 70, 1);
+      [[x, y], [x + ww, y], [x + ww, y + hh], [x, y + hh]].forEach(function (v) { w(0, 'VERTEX', 8, layer, 10, n(v[0]), 20, n(v[1])); });
+      w(0, 'SEQEND', 8, layer);
+    }
+    function text(x, y, h, s, rot) {
+      w(0, 'TEXT', 8, 'TEXT', 10, n(x), 20, n(y), 40, n(h), 1, asc(s));
+      if (rot) w(50, 90);
+      w(72, 4, 11, n(x), 21, n(y));
+    }
+    list.forEach(function (g) {
+      var m = d.mats[g.mat], sh = g.sheet, c = sh.cfg, t = c.trim, th = Math.max(12, Math.min(45, c.L / 60));
+      rect('SHEET', ox, 0, c.L, c.W);
+      if (t > 0) rect('TRIM', ox + t, t, c.L - 2 * t, c.W - 2 * t);
+      text(ox + c.L / 2, c.W + th * 1.6, th, m.name + ' - ' + fmt(c.L) + 'x' + fmt(c.W) + ' - ' + g.label +
+        (g.sheets.length > 1 ? ' (x' + g.sheets.length + ')' : ''));
+      offcuts(sh).forEach(function (f) { rect('OFFCUTS', ox + t + f.x, c.W - t - f.y - f.h, f.w, f.h); });
+      sh.placed.forEach(function (p) {
+        var x = ox + t + p.x, y = c.W - t - p.y - p.h; // DXF y axis points up
+        rect('PARTS', x, y, p.w, p.h);
+        var s = fmt(p.w) + 'x' + fmt(p.h), vert = p.h > p.w * 1.3, along = vert ? p.h : p.w, across = vert ? p.w : p.h;
+        var h = Math.min(40, across * 0.3, along / (s.length * 0.9));
+        if (h < 6) return;
+        var cx = x + p.w / 2, cy = y + p.h / 2, nm = d.types[p.id].name;
+        if (across > h * 3.4 && along > nm.length * h * 0.75) {
+          if (vert) { text(cx - h * 0.85, cy, h * 0.8, nm, true); text(cx + h * 0.85, cy, h, s, true); }
+          else { text(cx, cy + h * 0.85, h * 0.8, nm); text(cx, cy - h * 0.85, h, s); }
+        } else text(cx, cy, h, s, vert);
+      });
+      ox += c.L + 400;
+    });
+    w(0, 'ENDSEC', 0, 'EOF');
+    return o.join('\r\n') + '\r\n';
+  }
+  // one DXF file per sheet layout (identical sheets share one file, marked x2, x3 ...)
+  function dxfFiles() {
+    return last.groups.map(function (g) { return { name: g.file, text: buildDxf([g]) }; });
+  }
+  function downloadDxf() {
+    if (!last) { alert('ჯერ დააჭირეთ „გამოთვლა“-ს.'); return; }
+    dxfFiles().forEach(function (f, i) {
+      setTimeout(function () {
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([f.text], { type: 'application/dxf' }));
+        a.download = f.name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+      }, i * 350);
+    });
+  }
+
+  // =====================================================================
+  // Download (tab-separated UTF-16 file, opens directly in Excel)
+  // =====================================================================
+  function buildExport() {
+    var d = last, R = [];
+    var dec = (1.1).toLocaleString().replace(/[0-9]/g, '') || '.';
+    var c = function (v) {
+      if (typeof v === 'number') return String(Math.round(v * 100) / 100).replace('.', dec);
+      return String(v == null ? '' : v).replace(/[\t\r\n]+/g, ' ');
+    };
+    R.push(['მასალა', 'ფირფიტის სიგრძე, მმ', 'ფირფიტის სიგანე, მმ', 'ახალი ფირფიტა', 'ნაშთიდან, ნაჭერი']);
+    d.mats.forEach(function (m) { R.push([m.name, m.L, m.W, m.n, m.nStock]); });
+    R.push(['ჭრილის სისქე, მმ', d.kerf]);
+    R.push(['კიდის ჩამოჭრა, მმ', d.trim]);
+    R.push([]);
+    if (d.specs.length) {
+      R.push(['კარადები']);
+      R.push(['კარადა', 'რაოდენობა', 'სიგანე, მმ', 'სიმაღლე, მმ', 'სიღრმე, მმ', 'პეტლი, ც', 'სალასკა, წყვილი', 'ხელისმოსაკიდი, ც']);
+      d.specs.forEach(function (s) { R.push([s.name, s.q, s.W, s.H, s.D, s.hw.hinges * s.q, s.hw.slides * s.q, s.hw.handles * s.q]); });
+      R.push([]);
+    }
+    R.push(['დასახერხი დეტალები']);
+    R.push(['დასახელება', 'მასალა', 'სიგრძე, მმ', 'სიგანე, მმ', 'რაოდენობა', 'ბრუნვა', 'კრომკა სიგრძეზე', 'კრომკა სიგანეზე']);
+    d.types.forEach(function (t) { R.push([t.name, d.mats[t.mat].name, t.l, t.w, t.q, t.rot ? 'კი' : 'არა', t.el, t.ew]); });
+    R.push([]);
+    R.push(['განლაგება ფირფიტებზე']);
+    R.push(['მასალა', 'ფირფიტა', 'ფირფიტის ზომა, მმ', 'ერთნაირი ფირფიტები', 'დასახელება', 'ზომა სიგრძეზე, მმ', 'ზომა სიგანეზე, მმ', 'პოზიცია X, მმ', 'პოზიცია Y, მმ', 'შებრუნებული']);
+    d.groups.forEach(function (g) {
+      var cf = g.sheet.cfg;
+      g.sheet.placed.slice().sort(function (a, b) { return a.y - b.y || a.x - b.x; }).forEach(function (p) {
+        R.push([d.mats[g.mat].name, g.title, fmt(cf.L) + 'x' + fmt(cf.W), g.sheets.length, d.types[p.id].name, p.w, p.h, p.x + cf.trim, p.y + cf.trim, p.rotated ? 'კი' : '']);
+      });
+    });
+    R.push([]);
+    R.push(['დარჩენილი ნაწილები']);
+    R.push(['მასალა', 'ფირფიტა', 'სიგრძე, მმ', 'სიგანე, მმ', 'რაოდენობა']);
+    d.offRows.forEach(function (o) { R.push([o.mat, o.sheet, o.w, o.h, o.n]); });
+    R.push([]);
+    R.push(['ღირებულების კალკულაცია']);
+    R.push(['პოზიცია', 'რაოდენობა', 'ერთეული', 'ფასი, ₾', 'ჯამი, ₾']);
+    d.rows.forEach(function (r) { R.push(r); });
+    R.push(['სულ', '', '', '', d.total]);
+    return R.map(function (r) { return r.map(c).join('\t'); }).join('\r\n');
+  }
+  function download() {
+    if (!last) { alert('ჯერ დააჭირეთ „გამოთვლა“-ს.'); return; }
+    var txt = buildExport();
+    var buf = new Uint16Array(txt.length + 1);
+    buf[0] = 0xFEFF;
+    for (var i = 0; i < txt.length; i++) buf[i + 1] = txt.charCodeAt(i);
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([buf], { type: 'text/csv' }));
+    a.download = 'karadis-dachra.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+  }
+
+  // =====================================================================
+  // Events
+  // =====================================================================
+  // =====================================================================
+  // Project report: cabinets with dimensions, materials, cutting layouts — for printing / saving as PDF
+  // =====================================================================
+  // front view of a cabinet with overall dimensions and the inner size of every compartment
+  function dimSvg(c) {
+    var t = carcT(c), W = num(c.W), H = num(c.H), lay = layout(c, t), big = Math.max(W, H), sw = big / 300, fs = big / 28, off = fs * 1.5, i;
+    var left = off + fs * 1.7, bot = off + fs * 1.9;
+    var R = function (x, y, w, h, fill, stroke, k) {
+      return '<rect x="' + x + '" y="' + y + '" width="' + Math.max(w, 0) + '" height="' + Math.max(h, 0) + '" fill="' + fill +
+        '" stroke="' + stroke + '" stroke-width="' + sw * (k || 1) + '"/>';
+    };
+    var Ln = function (x1, y1, x2, y2, col, k, dash) {
+      return '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + col + '" stroke-width="' + sw * (k || 1) + '"' +
+        (dash ? ' stroke-dasharray="' + sw * 5 + ' ' + sw * 4 + '"' : '') + '/>';
+    };
+    var Tx = function (x, y, size, txt, rot, col, halo) {
+      return '<text x="' + x + '" y="' + y + '" font-size="' + size + '" text-anchor="middle" fill="' + (col || '#1f2428') + '" font-family="Segoe UI, Sylfaen, sans-serif"' +
+        (halo ? ' stroke="#fff" stroke-width="' + size * 0.28 + '" paint-order="stroke" stroke-linejoin="round"' : '') +
+        (rot ? ' transform="rotate(-90 ' + x + ' ' + y + ')"' : '') + '>' + txt + '</text>';
+    };
+    var s = '<svg viewBox="' + (-left) + ' ' + (-fs * 0.4) + ' ' + (W + left + fs * 0.4) + ' ' + (H + bot + fs * 0.4) + '" xmlns="http://www.w3.org/2000/svg">';
+    var wood = '#e6d8b8', ov = c.top === 'overlay', bottom = c.dpos === 'bottom';
+    s += R(0, 0, W, H, '#fff', '#333', 1.4);
+    s += R(0, ov ? t : 0, t, ov ? H - t : H, wood, '#333') + R(W - t, ov ? t : 0, t, ov ? H - t : H, wood, '#333');
+    s += ov ? R(0, 0, W, t, wood, '#333') : R(t, 0, W - 2 * t, t, wood, '#333');
+    s += R(t, H - t, W - 2 * t, t, wood, '#333');
+    lay.divs.forEach(function (dv) { s += R(dv.x, dv.y, dv.w, dv.h, wood, '#333'); });
+    lay.cells.forEach(function (sc) {
+      for (i = 0; i < sc.ns; i++) {
+        var sy = sc.y + (i + 1) * sc.h / (sc.ns + 1);
+        s += Ln(sc.x, sy, sc.x + sc.w, sy, '#7a6a45', 1.2, true);
+      }
+      var hl = Math.min(sc.fw * 0.14, 90), drTop = bottom ? sc.fy0 + sc.fhh - sc.drH : sc.fy0, doorTop = bottom ? sc.fy0 : sc.fy0 + sc.drH;
+      for (i = 0; i < sc.nr; i++) {
+        var y = drTop + i * sc.fh;
+        s += R(sc.fx0 + 2, y + 2, sc.fw - 4, sc.fh - 4, 'rgba(180,84,26,.07)', '#b4541a', 1.2);
+        s += Ln(sc.fx0 + sc.fw / 2 - hl, y + sc.fh * 0.5, sc.fx0 + sc.fw / 2 + hl, y + sc.fh * 0.5, '#7a3a12', 1.6);
+      }
+      if (sc.nd) {
+        var dw = (sc.fw - 3 - 3 * (sc.nd - 1)) / sc.nd, vl = Math.min(sc.doorH * 0.07, 90), cy = doorTop + sc.doorH / 2;
+        for (i = 0; i < sc.nd; i++) {
+          var x = sc.fx0 + 1.5 + i * (dw + 3), hx = (sc.nd === 2 && i === 1) ? x + dw * 0.1 : x + dw * 0.9;
+          s += R(x, doorTop + 2, dw, sc.doorH - 4, 'rgba(60,110,160,.06)', '#3c6ea0', 1.2);
+          s += Ln(hx, cy - vl, hx, cy + vl, '#27507a', 1.6);
+        }
+      }
+    });
+    lay.cells.forEach(function (sc) { // inner size of every compartment, drawn last so it stays readable
+      var txt = fmt(sc.w) + '×' + fmt(sc.h), f = Math.min(fs * 0.8, sc.w / (txt.length * 0.6), sc.h * 0.4);
+      if (f >= fs * 0.3) s += Tx(sc.x + sc.w / 2, sc.y + sc.h / 2 + f * 0.35, f, txt, false, '#1f2428', true);
+    });
+    // overall dimensions
+    var yb = H + off, xl = -off;
+    s += Ln(0, yb, W, yb, '#333') + Ln(0, H + off * 0.4, 0, yb + off * 0.3, '#333') + Ln(W, H + off * 0.4, W, yb + off * 0.3, '#333');
+    s += Tx(W / 2, yb + fs * 1.15, fs, fmt(W));
+    s += Ln(xl, 0, xl, H, '#333') + Ln(xl - off * 0.3, 0, -off * 0.4, 0, '#333') + Ln(xl - off * 0.3, H, -off * 0.4, H, '#333');
+    s += Tx(xl - fs * 0.45, H / 2, fs, fmt(H), true);
+    return s + '</svg>';
+  }
+  function buildReport() {
+    var d = last, keepSel = d.sel, th = function (cols) { return '<tr>' + cols.map(function (c) { return '<th' + (c.charAt(0) === '>' ? ' class="r">' + c.slice(1) : '>' + c) + '</th>'; }).join('') + '</tr>'; };
+    d.sel = null; // no selection highlight in the drawings
+    var m2 = function (a) { return (a / 1e6).toFixed(2); };
+    var html = '<div class="rp-bar noprint"><button class="primary" data-rp="print">PDF-ად შენახვა / ბეჭდვა</button><button data-rp="close">← უკან</button>' +
+      '<span class="hint" style="margin:0">ბეჭდვის ფანჯარაში პრინტერად აირჩიეთ „Save as PDF“ ან „Microsoft Print to PDF“ და მიუთითეთ ფოლდერი.</span></div>';
+    html += '<h1>კარადის პროექტი</h1><p class="rp-meta">თარიღი: ' + (function (n) {
+      var p2 = function (x) { return (x < 10 ? '0' : '') + x; };
+      return p2(n.getDate()) + '.' + p2(n.getMonth() + 1) + '.' + n.getFullYear();
+    })(new Date()) + ' · კარადა: ' +
+      d.specs.reduce(function (a, s) { return a + s.q; }, 0) + ' · დეტალი სულ: ' + d.count + ' · ყველა ზომა მილიმეტრებშია</p>';
+
+    if (d.specs.length) html += '<h2>კარადები</h2>';
+    d.specs.forEach(function (s) {
+      html += '<div class="rp-cab"><div class="rp-draw">' + dimSvg(s.cab) + '<p class="rp-meta" style="text-align:center">წინხედი · განყოფილებებში შიდა ზომაა (სიგანე×სიმაღლე)</p></div><div class="rp-info">' +
+        '<h3>' + esc(s.name) + (s.q > 1 ? ' × ' + s.q + ' ცალი' : '') + '</h3>' +
+        '<p class="rp-meta">სიგანე ' + fmt(s.W) + ' · სიმაღლე ' + fmt(s.H) + ' · სიღრმე ' + fmt(s.D) + ' მმ</p>' +
+        '<table class="tbl">' + th(['დეტალი', 'ზომა, მმ', '>რაოდ.', 'მასალა']);
+      s.parts.forEach(function (p) {
+        var cm = matById(p.mat);
+        html += '<tr><td>' + esc(p.name) + '</td><td>' + fmt(p.l) + ' × ' + fmt(p.w) + '</td><td class="r">' + p.q * s.q + '</td><td>' + esc(cm ? cm.name : '') + '</td></tr>';
+      });
+      html += '</table><p class="rp-meta">ფურნიტურა: პეტლი — ' + s.hw.hinges * s.q + ' ც · უჯრის სალასკა — ' + s.hw.slides * s.q +
+        ' წყვილი · ხელისმოსაკიდი — ' + s.hw.handles * s.q + ' ც</p></div></div>';
+    });
+    var extra = d.types.filter(function (t) { return t.manual; });
+    if (extra.length) {
+      html += '<h2>დამატებითი დეტალები</h2><table class="tbl">' + th(['დეტალი', 'ზომა, მმ', '>რაოდ.', 'მასალა']);
+      extra.forEach(function (t) { html += '<tr><td>' + esc(t.name) + '</td><td>' + fmt(t.l) + ' × ' + fmt(t.w) + '</td><td class="r">' + t.q + '</td><td>' + esc(d.mats[t.mat].name) + '</td></tr>'; });
+      html += '</table>';
+    }
+
+    html += '<div class="rp-block"><h2>მასალები და ღირებულება</h2><table class="tbl">' + th(['პოზიცია', '>რაოდენობა', '>ფასი, ₾', '>ჯამი, ₾']);
+    d.rows.forEach(function (r) {
+      html += '<tr><td>' + esc(r[0]) + '</td><td class="r">' + qtyText(r) + '</td><td class="r">' + r[3].toFixed(2) + '</td><td class="r">' + r[4].toFixed(2) + '</td></tr>';
+    });
+    html += '<tr class="total"><td colspan="3">სულ</td><td class="r">' + d.total.toFixed(2) + ' ₾</td></tr></table></div>';
+
+    html += '<h2>დაჭრის სქემები</h2>';
+    d.groups.forEach(function (g) {
+      var m = d.mats[g.mat], sh = g.sheet, c = sh.cfg, k = g.sheets.length;
+      html += '<div class="rp-sheet"><h3>' + esc(m.name) + ' — ' + esc(g.title) + (k > 1 ? ' — ' + k + ' ერთნაირი ფირფიტა' : '') +
+        ' <small>' + fmt(c.L) + '×' + fmt(c.W) + ' მმ · ' + sh.placed.length + ' დეტალი · გამოყენება ' + (sh.used / (c.L * c.W) * 100).toFixed(1) + '%</small></h3>' +
+        sheetSvg(sh, d.types, Math.max(170, Math.min(680, 680 * c.L / m.L))) + '</div>';
+    });
+    if (d.offRows.length) {
+      html += '<div class="rp-block"><h2>დარჩენილი ნაწილები</h2><table class="tbl">' + th(['მასალა', 'ფირფიტა', 'ზომა, მმ', '>რაოდ.', '>ფართობი, მ²']);
+      d.offRows.forEach(function (o) {
+        html += '<tr><td>' + esc(o.mat) + '</td><td>' + esc(o.sheet) + '</td><td>' + fmt(o.w) + ' × ' + fmt(o.h) + '</td><td class="r">' + o.n + '</td><td class="r">' + m2(o.w * o.h * o.n) + '</td></tr>';
+      });
+      html += '</table></div>';
+    }
+    html += '<p class="rp-meta">დაჭრის სქემებზე: ფერადი მართკუთხედები — დეტალები, მწვანე წყვეტილი ჩარჩო — დარჩენილი ნაწილი. დეტალებს შორის ჭრილის სისქეა ' + fmt(d.kerf) + ' მმ.</p>';
+    d.sel = keepSel;
+    return html;
+  }
+  function showReport() {
+    if (!last) { alert('ჯერ დააჭირეთ „გამოთვლა“-ს.'); return false; }
+    $('report').innerHTML = buildReport();
+    document.body.classList.add('report');
+    window.scrollTo(0, 0);
+    return true;
+  }
+  $('report').addEventListener('click', function (e) {
+    var a = e.target.getAttribute && e.target.getAttribute('data-rp');
+    if (a === 'print') window.print();
+    if (a === 'close') document.body.classList.remove('report');
+  });
+  $('pdf').onclick = showReport;
+
+  // =====================================================================
+  // Events
+  // =====================================================================
+  PRESETS.forEach(function (p) {
+    var b = document.createElement('button');
+    b.className = 'preset';
+    b.textContent = '+ ' + p.name;
+    b.title = p.W + '×' + p.H + '×' + p.D + ' მმ';
+    b.onclick = function () { addCab(p); };
+    $('presets').appendChild(b);
+  });
+  $('tabs').addEventListener('click', function (e) {
+    var t = e.target.closest('[data-tab]');
+    if (t) showTab(t.getAttribute('data-tab'));
+  });
+  function cabInput(e) {
+    var el = e.target.closest('.cab'), a = function (n) { return e.target.getAttribute(n); };
+    if (!el) return;
+    var c = cabs[+el.getAttribute('data-i')], t = carcT(c), sel = SEL.get(c), node;
+    if (a('data-k')) {
+      c[a('data-k')] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+      refreshCab(el, c);
+    } else if (a('data-cell') && sel && !sel.div) {
+      node = nodeAt(c, sel.path);
+      if (!node || node.dir) return;
+      node[a('data-cell')] = e.target.value;
+      refreshCab(el, c, true);
+    } else if ((a('data-divpos') || a('data-divrest')) && sel && sel.div) {
+      node = nodeAt(c, sel.path);
+      var dv = layout(c, t).divs.filter(function (d) { return d.path === sel.path; })[0], v = num(e.target.value);
+      if (!node || !dv || !(v >= 0)) return;
+      node.pos = a('data-divpos') ? v : dv.size - t - v;
+      // the drawing uses the position pulled back into the allowed range; the other field shows the real result,
+      // and when typing is finished (change) the typed field is corrected too
+      var real = layout(c, t).divs.filter(function (d) { return d.path === sel.path; })[0].p;
+      var other = el.querySelector(a('data-divpos') ? '[data-divrest]' : '[data-divpos]');
+      if (other) other.value = fmt(a('data-divpos') ? dv.size - t - real : real);
+      if (e.type === 'change') { node.pos = real; e.target.value = fmt(a('data-divpos') ? real : dv.size - t - real); }
+      refreshCab(el, c, true);
+    } else return;
+    save();
+  }
+  $('cabs').addEventListener('input', cabInput);
+  $('cabs').addEventListener('change', cabInput);
+  $('cabs').addEventListener('click', function (e) {
+    var el = e.target.closest('.cab'), a = function (n) { return e.target.getAttribute(n); };
+    if (!el) return;
+    var ci = +el.getAttribute('data-i'), c = cabs[ci], t = carcT(c), sel = SEL.get(c);
+    if (a('data-del')) { cabs.splice(ci, 1); renderCabs(); save(); return; }
+    if (a('data-split') && sel && !sel.div) {
+      // the selected compartment is cut in two; the first half keeps its shelves / doors / drawers
+      var cl = layout(c, t).cells.filter(function (d) { return d.path === sel.path; })[0], dir = a('data-split');
+      var size = dir === 'v' ? cl.w : cl.h;
+      if (size < 2 * 30 + t) { alert('განყოფილება ძალიან პატარაა ტიხრის ჩასასმელად.'); return; }
+      setNode(c, sel.path, { dir: dir, pos: Math.floor((size - t) / 2), a: nodeAt(c, sel.path), b: leaf() });
+      SEL.set(c, { path: sel.path + 'a', div: false });
+    } else if (a('data-deldiv') && sel && sel.div) {
+      // removing a divider keeps the contents of its first (left / upper) part
+      var node = nodeAt(c, sel.path);
+      setNode(c, sel.path, node.a);
+      SEL.delete(c);
+    } else return;
+    refreshCab(el, c);
+    save();
+  });
+  // clicking the drawing selects a compartment or a divider; a divider can be dragged
+  $('cabs').addEventListener('pointerdown', function (e) {
+    var svg = e.target.closest && e.target.closest('.prev svg');
+    if (!svg || e.button) return;
+    var el = svg.closest('.cab'), c = cabs[+el.getAttribute('data-i')], t = carcT(c);
+    var dvEl = e.target.closest('[data-div]'), ceEl = e.target.closest('[data-path]');
+    if (dvEl) {
+      e.preventDefault();
+      var path = dvEl.getAttribute('data-div'), node = nodeAt(c, path);
+      var dv = layout(c, t).divs.filter(function (d) { return d.path === path; })[0];
+      var rect = svg.getBoundingClientRect(), vb = svg.viewBox.baseVal;
+      var scale = Math.max(vb.width / (rect.width || 1), vb.height / (rect.height || 1)); // mm per screen pixel
+      var start = node.dir === 'v' ? e.clientX : e.clientY, p0 = dv.p;
+      SEL.set(c, { path: path, div: true });
+      refreshCab(el, c);
+      var move = function (ev) {
+        var np = Math.round(p0 + ((node.dir === 'v' ? ev.clientX : ev.clientY) - start) * scale);
+        node.pos = Math.max(30, Math.min(np, dv.size - t - 30));
+        refreshCab(el, c);
+      };
+      var up = function () {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        window.removeEventListener('pointercancel', up);
+        save();
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+      window.addEventListener('pointercancel', up);
+    } else if (ceEl) {
+      SEL.set(c, { path: ceEl.getAttribute('data-path'), div: false });
+      refreshCab(el, c);
+    }
+  });
+
+  // generic editing of the catalog and stock tables
+  function tableInput(list, after) {
+    return function (e) {
+      var k = e.target.getAttribute('data-k'), tr = e.target.closest('tr[data-i]');
+      if (!k || !tr) return;
+      list()[+tr.getAttribute('data-i')][k] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+      if (after) after();
+      save();
+    };
+  }
+  var matIn = tableInput(function () { return catalog; });
+  $('matRows').addEventListener('input', matIn);
+  $('matRows').addEventListener('change', matIn);
+  $('matRows').addEventListener('click', function (e) {
+    if (!e.target.getAttribute('data-del')) return;
+    var i = +e.target.closest('tr').getAttribute('data-i'), m = catalog[i];
+    var used = cabs.some(function (c) { return [c.mCarc, c.mFront, c.mBack, c.mBox, c.mBottom].indexOf(m.id) >= 0; }) ||
+      stock.some(function (s) { return s.mat === m.id; });
+    if (used && !confirm('მასალა „' + (m.name || '') + '“ გამოყენებულია კარადებში ან ნაშთში. წაიშალოს? (ნაშთის ჩანაწერებიც წაიშლება, კარადებში მასალა თავიდან იქნება ასარჩევი)')) return;
+    catalog.splice(i, 1);
+    stock = stock.filter(function (s) { return s.mat !== m.id; });
+    renderCatalog(); renderStock();
+    save();
+  });
+  $('addMat').onclick = function () {
+    catalog.push({ id: newId('m'), name: '', L: 2800, W: 2070, th: 18, price: '', grain: true });
+    renderCatalog();
+    var rows = $('matRows').querySelectorAll('tr[data-i]');
+    rows[rows.length - 1].querySelector('input').focus();
+    save();
+  };
+  var stockIn = tableInput(function () { return stock; }, function () { $('stockCount').textContent = stockTotal(); });
+  $('stockRows').addEventListener('input', stockIn);
+  $('stockRows').addEventListener('change', stockIn);
+  $('stockRows').addEventListener('click', function (e) {
+    if (!e.target.getAttribute('data-del')) return;
+    stock.splice(+e.target.closest('tr').getAttribute('data-i'), 1);
+    renderStock();
+    save();
+  });
+  $('addStock').onclick = function () {
+    if (!catalog.length) { alert('ჯერ დაამატეთ მასალა „მასალები“ ჩანართში.'); return; }
+    stock.push({ id: newId('s'), mat: catalog[0].id, L: '', W: '', q: 1 });
+    renderStock();
+    save();
+  };
+  $('gap').addEventListener('input', refreshAllCabs);
+  $('addRow').onclick = function () { addRow().querySelector('.p-name').focus(); };
+  $('calc').onclick = function () {
+    var b = $('calc'); b.textContent = 'ითვლება…'; b.disabled = true;
+    setTimeout(function () {
+      try { calculate(); } finally { b.textContent = 'გამოთვლა'; b.disabled = false; }
+    }, 20);
+  };
+  $('print').onclick = function () { window.print(); };
+  $('dl').onclick = download;
+  $('dxf').onclick = downloadDxf;
+  document.querySelector('.inputs').addEventListener('change', save);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.closest('.inputs')) $('calc').click();
+  });
+
+  // =====================================================================
+  // Self-test (open the file with #test at the end of the address)
+  // =====================================================================
+  function verify() {
+    var errs = [], d = last, k = d.kerf, tally = {};
+    var near = function (a, b) { return Math.abs(a - b) < 1e-3; };
+    var hit = function (a, b) { // closer than one kerf
+      return a.x < b.x + b.w + k - 1e-3 && a.x + a.w + k > b.x + 1e-3 && a.y < b.y + b.h + k - 1e-3 && a.y + a.h + k > b.y + 1e-3;
+    };
+    d.mats.forEach(function (m) {
+      var area = 0, nNew = 0, nSt = 0, fullArea = (m.L - 2 * d.trim) * (m.W - 2 * d.trim), stArea = 0, seen = [];
+      m.sheets.forEach(function (sh, si) {
+        var tag = m.name + ' #' + (si + 1) + ': ', c = sh.cfg, uw = c.L - 2 * c.trim, uh = c.W - 2 * c.trim;
+        if (sh.stock) { nSt++; stArea += uw * uh; if (c.trim !== 0 || c.L !== sh.stock.L || c.W !== sh.stock.W) errs.push(tag + 'stock sheet has wrong size'); if (seen.indexOf(sh.stock) >= 0) errs.push(tag + 'stock piece used twice'); seen.push(sh.stock); }
+        else { nNew++; if (c.L !== m.L || c.W !== m.W || c.trim !== d.trim) errs.push(tag + 'new sheet has wrong size'); }
+        if (!sh.placed.length) errs.push(tag + 'empty sheet');
+        sh.placed.forEach(function (p, i) {
+          var ty = d.types[p.id];
+          area += p.w * p.h;
+          tally[p.id] = (tally[p.id] || 0) + 1;
+          if (ty.mat !== m.idx) errs.push(tag + 'piece on wrong material');
+          if (p.x < -1e-3 || p.y < -1e-3 || p.x + p.w > uw + 1e-3 || p.y + p.h > uh + 1e-3) errs.push(tag + 'piece out of bounds');
+          var straight = near(p.w, ty.l) && near(p.h, ty.w), turned = near(p.w, ty.w) && near(p.h, ty.l);
+          if (!straight && !(turned && (ty.rot || sh.manual))) errs.push(tag + 'wrong size/rotation for ' + ty.name);
+          for (var j = i + 1; j < sh.placed.length; j++) if (hit(p, sh.placed[j])) errs.push(tag + 'pieces overlap');
+        });
+        if (!sh.manual && !guil(occupied(sh, k))) errs.push(tag + 'not guillotine-cuttable');
+        var offs = offcuts(sh);
+        offs.forEach(function (o, i) {
+          if (o.x < -1e-3 || o.y < -1e-3 || o.x + o.w > uw + 1e-3 || o.y + o.h > uh + 1e-3) errs.push(tag + 'offcut out of bounds');
+          if (Math.min(o.w, o.h) < d.minOff - 1e-3) errs.push(tag + 'offcut below minimum');
+          sh.placed.forEach(function (p) { if (hit(o, p)) errs.push(tag + 'offcut overlaps piece'); });
+          for (var j = i + 1; j < offs.length; j++) if (hit(o, offs[j])) errs.push(tag + 'offcuts overlap');
+        });
+      });
+      if (m.n !== nNew || m.nStock !== nSt) errs.push('sheet count mismatch');
+      if (m.n < Math.ceil((area - stArea) / fullArea - 1e-9)) errs.push('fewer sheets than area lower bound?!');
+      if (!near(area, m.usedArea)) errs.push('used area mismatch');
+    });
+    d.types.forEach(function (ty, id) {
+      if ((tally[id] || 0) !== ty.q) errs.push('count mismatch for ' + ty.name + ': ' + (tally[id] || 0) + ' of ' + ty.q);
+    });
+    var sum = 0;
+    d.rows.forEach(function (r) { sum += r[1] * r[3]; if (!near(r[4], r[1] * r[3])) errs.push('row sum wrong: ' + r[0]); });
+    if (!near(sum, d.total)) errs.push('total mismatch');
+    return errs;
+  }
+
+  function selfTest() {
+    var log = [], fails = 0;
+    window.alert = function () {};
+    window.confirm = function () { return true; };
+    function ok(c, msg) { if (c) log.push('ok   ' + msg); else { fails++; log.push('FAIL ' + msg); } }
+    function base(extra) {
+      var s = clone(DEF), k;
+      s.catalog = defaultCatalog(); s.stock = []; s.cabs = []; s.parts = [];
+      for (k in extra) s[k] = extra[k];
+      return s;
+    }
+    function cat(over) { // default catalog with changes: { m1: { price: 100 } }
+      var c = defaultCatalog();
+      c.forEach(function (m) { var o = over[m.id], k; for (k in (o || {})) m[k] = o[k]; });
+      return c;
+    }
+    function mk(i, extra) {
+      var c = clone(PRESETS[i]), k;
+      c.q = 1; c.mCarc = 'm1'; c.mFront = 'm1'; c.mBox = 'm1'; c.mBack = 'm2'; c.mBottom = 'm2';
+      for (k in (extra || {})) c[k] = extra[k];
+      return c;
+    }
+    function part(name, l, w, q, extra) { var p = { name: name, l: l, w: w, q: q, rot: true, el: 0, ew: 0, mat: 'm1' }, k; for (k in (extra || {})) p[k] = extra[k]; return p; }
+    function run(s) { applyState(s); calculate(); return last; }
+    function valid(tag) {
+      var e = last ? verify() : ['no result'];
+      ok(!e.length, tag + ' — layout valid' + (e.length ? ' -> ' + e.slice(0, 4).join(' | ') : ''));
+    }
+    function ty(name) { return last.types.filter(function (t) { return t.name === name; })[0]; }
+    function is(name, l, w, q, matId) { var t = ty(name); return !!t && t.l === l && t.w === w && t.q === q && (matId == null || t.matId === matId); }
+    function mat(id) { return last.mats.filter(function (m) { return m.id === id; })[0]; }
+    function errShown() { return !last && !!document.querySelector('#out .error'); }
+    var near = function (a, b) { return Math.abs(a - b) < 1e-6; };
+    var d, i;
+
+    // A. every preset on its own
+    PRESETS.forEach(function (p, pi) {
+      d = run(base({ cabs: [mk(pi)] }));
+      ok(!!d, 'preset "' + p.name + '" calculates');
+      if (!d) { log.push('     ' + $('out').textContent); return; }
+      valid('preset "' + p.name + '"');
+      var m = d.mats[0], lb = Math.ceil(m.usedArea / ((m.L - 20) * (m.W - 20)));
+      ok(m.n <= lb + (pi < 7 ? 1 : 2) && document.querySelectorAll('#cabs .prev svg [data-path]').length >= 1,'preset "' + p.name + '" uses ' + m.n + ' main sheet(s), area bound ' + lb);
+    });
+
+    // B. all presets together, two of each, no grain restriction
+    d = run(base({ catalog: cat({ m1: { grain: false } }), cabs: PRESETS.map(function (p, pi) { return mk(pi, { q: 2 }); }) }));
+    ok(!!d, 'all presets x2 calculate');
+    if (d) { valid('all presets x2'); log.push('     main sheets: ' + d.mats[0].n + ', back sheets: ' + d.mats[1].n + ', pieces: ' + d.count); }
+
+    // C. exact parts of known cabinets
+    d = run(base({ cabs: [mk(0), mk(4)] }));
+    ok(!!d, 'wardrobe + chest calculate');
+    if (d) {
+      valid('wardrobe + chest');
+      ok(is('გარდერობი · გვერდი', 2100, 580, 2, 'm1'), 'wardrobe sides 2 x 2100x580');
+      ok(is('გარდერობი · ჭერი', 964, 580, 1) && is('გარდერობი · ძირი', 964, 580, 1), 'wardrobe top/bottom 964x580');
+      ok(is('გარდერობი · თარო', 964, 560, 4), 'wardrobe shelves 4 x 964x560');
+      ok(is('გარდერობი · კარი', 2097, 497, 2, 'm1'), 'wardrobe doors 2 x 2097x497');
+      ok(is('გარდერობი · უკანა კედელი', 2096, 996, 1, 'm2'), 'wardrobe back 2096x996 on hardboard');
+      ok(is('კომოდი · გვერდი', 832, 450, 2), 'chest sides 2 x 832x450 (overlay top)');
+      ok(is('კომოდი · ზედა პანელი', 800, 450, 1), 'chest top 800x450');
+      ok(is('კომოდი · ძირი', 764, 450, 1), 'chest bottom 764x450');
+      ok(is('კომოდი · უჯრის ფასადი', 797, 209, 4), 'chest drawer fronts 4 x 797x209');
+      ok(is('კომოდი · უჯრის გვერდი', 400, 162, 8), 'chest drawer sides 8 x 400x162');
+      ok(is('კომოდი · უჯრის წინა კედელი', 702, 162, 4) && is('კომოდი · უჯრის უკანა კედელი', 702, 162, 4), 'chest drawer front wall 4 + back wall 4 x 702x162');
+      ok(is('კომოდი · უჯრის ძირი', 400, 738, 4, 'm2'), 'chest drawer bottoms 4 x 400x738 on hardboard');
+      ok(d.hw.hinges === 10 && d.hw.slides === 4 && d.hw.handles === 6, 'hardware: 10 hinges, 4 slide pairs, 6 handles (got ' +
+        d.hw.hinges + '/' + d.hw.slides + '/' + d.hw.handles + ')');
+      ok(near(d.edgeM, 41.352), 'edge banding 41.352 m (got ' + d.edgeM + ')');
+      ok(d.types.every(function (t) { return t.matId !== 'm1' || !t.rot; }) && ty('გარდერობი · უკანა კედელი').rot, 'grain: m1 parts locked, hardboard parts free');
+      ok(d.mats.length === 2 && !mat('m3'), 'only the two used materials appear in the result');
+    }
+
+    // C2. materials chosen per part group
+    d = run(base({ cabs: [mk(4, { mBox: 'm3' })] }));
+    ok(!!d, 'chest with separate drawer material calculates');
+    if (d) {
+      valid('chest with separate drawer material');
+      ok(!!mat('m3') && mat('m3').n === 1 && mat('m3').name === 'ლამინატი 16 მმ (უჯრის)', 'drawer material: 1 sheet, name from the catalog');
+      ok(is('კომოდი · უჯრის გვერდი', 400, 162, 8, 'm3'), 'drawer sides on drawer material');
+      ok(is('კომოდი · უჯრის უკანა კედელი', 706, 162, 4, 'm3'), 'drawer back wall 706x162 (16 mm) on drawer material');
+      ok(is('კომოდი · უჯრის წინა კედელი', 706, 162, 4, 'm1'), 'drawer FRONT wall 706x162 stays on the carcass material');
+      ok(ty('კომოდი · უჯრის ფასადი').matId === 'm1' && ty('კომოდი · უჯრის ძირი').matId === 'm2', 'fronts on facade material, bottoms on hardboard');
+    }
+    d = run(base({ cabs: [mk(4, { mBox: 'm3', mBack: 'm3', mBottom: 'm3' })] }));
+    ok(!!d && ty('კომოდი · უკანა კედელი').matId === 'm3' && ty('კომოდი · უჯრის ძირი').matId === 'm3' && !mat('m2'),
+      'chest: back, drawer sides and bottoms on drawer material, hardboard not used');
+    if (d) valid('chest fully on drawer material');
+    d = run(base({ cabs: [mk(0, { mFront: 'm3' })] }));
+    ok(!!d && is('გარდერობი · კარი', 2097, 497, 2, 'm3') && ty('გარდერობი · გვერდი').matId === 'm1' && ty('გარდერობი · კარი').rot,
+      'facade from another material: doors on m3 (no grain -> rotatable), carcass on m1');
+    if (d) valid('separate facade material');
+    d = run(base({ cabs: [mk(3, { mBack: 'm1' })] }));
+    ok(!!d && is('სამზარეულოს ზედა · უკანა კედელი', 716, 596, 1, 'm1') && d.mats.length === 1, 'back panel from the carcass material');
+    d = run(base({ cabs: [mk(3, { mBack: '' })] }));
+    ok(!!d && !ty('სამზარეულოს ზედა · უკანა კედელი') && d.mats.length === 1, 'back panel "none": no back part');
+    d = run(base({ catalog: cat({ m1: { th: 16 } }), cabs: [mk(0)] }));
+    ok(!!d && is('გარდერობი · თარო', 968, 560, 4), 'catalog thickness 16 -> shelf 968x560');
+    d = run(base({ catalog: cat({ m3: { L: 2440, W: 1220, th: 12 } }), cabs: [mk(4, { mBox: 'm3' }), mk(0)] }));
+    ok(!!d && is('კომოდი · უჯრის უკანა კედელი', 714, 162, 4) && mat('m3').sheets[0].cfg.L === 2440, 'drawer material 12 mm on its own 2440x1220 sheet -> 714x162');
+    if (d) valid('mixed materials');
+
+    // C3. hand-built interiors: vertical and horizontal dividers
+    d = run(base({ cabs: [mk(7)] }));
+    ok(!!d, 'two-section wardrobe calculates');
+    if (d) {
+      valid('two-section wardrobe');
+      var N = 'გარდერობი 2 სექციით · ';
+      ok(is(N + 'ვერტიკალური ტიხარი', 2064, 580, 1, 'm1'), 'vertical divider 2064x580');
+      ok(is(N + 'გვერდი', 2100, 580, 2) && is(N + 'ჭერი', 1564, 580, 1) && is(N + 'ძირი', 1564, 580, 1), 'carcass of the 1600 wide cabinet');
+      ok(is(N + 'თარო · გ1', 1046, 560, 4) && is(N + 'თარო · გ2', 500, 560, 3), 'shelves: 1046 mm left of the divider, 500 mm right of it');
+      ok(is(N + 'კარი · გ1', 2097, 533, 2) && is(N + 'კარი · გ2', 1697, 524, 1), 'doors: 2 x 2097x533 and 1 x 1697x524 (next to two 200 mm drawers)');
+      ok(is(N + 'უჯრის ფასადი · გ2', 524, 197, 2) && is(N + 'უჯრის გვერდი · გ2', 550, 150, 4) && is(N + 'უჯრის წინა კედელი · გ2', 438, 150, 2) &&
+        is(N + 'უჯრის უკანა კედელი · გ2', 438, 150, 2) && is(N + 'უჯრის ძირი · გ2', 550, 474, 2, 'm2'), 'drawers of compartment 2: front 524x197, box 474 wide');
+      ok(d.hw.hinges === 14 && d.hw.handles === 5 && d.hw.slides === 2, 'hardware: 14 hinges, 5 handles, 2 slide pairs (got ' + d.hw.hinges + '/' + d.hw.handles + '/' + d.hw.slides + ')');
+    }
+    d = run(base({ cabs: [mk(8)] }));
+    ok(!!d, 'wardrobe with a horizontal divider (top box) calculates');
+    if (d) {
+      valid('wardrobe with a horizontal divider');
+      var A = 'გარდერობი ანტრესოლით · ';
+      ok(is(A + 'ჰორიზონტალური ტიხარი', 964, 580, 1, 'm1') && is(A + 'გვერდი', 2400, 580, 2), 'horizontal divider 964x580, sides 2400');
+      ok(is(A + 'კარი · გ1', 424, 497, 2) && is(A + 'კარი · გ2', 1970, 497, 2), 'doors: 2 x 424x497 above the divider, 2 x 1970x497 below');
+      ok(is(A + 'თარო · გ2', 964, 560, 4) && !ty(A + 'თარო · გ1') && d.hw.hinges === 12 && d.hw.handles === 4, 'shelves only below; 12 hinges, 4 handles');
+    }
+    // nested: vertical divider, then a horizontal one in the right part
+    var nest = { dir: 'v', pos: 400, a: { shelves: 1 }, b: { dir: 'h', pos: 600, a: { drawers: 3 }, b: { shelves: 2, doors: 1 } } };
+    d = run(base({ cabs: [mk(9, { tree: nest })] }));
+    ok(!!d, 'nested dividers calculate');
+    if (d) {
+      valid('nested dividers');
+      var X = 'ხელით აწყობა (ცარიელი) · ';
+      ok(is(X + 'ვერტიკალური ტიხარი', 1964, 550, 1) && is(X + 'ჰორიზონტალური ტიხარი', 746, 550, 1), 'dividers: vertical 1964, horizontal 746 (only the right part)');
+      ok(is(X + 'თარო · გ1', 400, 530, 1) && is(X + 'თარო · გ3', 746, 530, 2), 'shelves 400 wide (left) and 746 wide (right bottom)');
+      ok(is(X + 'უჯრის ფასადი · გ2', 770, 206, 3) && is(X + 'უჯრის გვერდი · გ2', 500, 159, 6) && is(X + 'უჯრის წინა კედელი · გ2', 684, 159, 3) &&
+        is(X + 'უჯრის ძირი · გ2', 500, 720, 3), 'three drawers fill the 627 mm high upper right compartment (fronts 770x206)');
+      ok(is(X + 'კარი · გ3', 1370, 770, 1) && d.hw.hinges === 3 && d.hw.slides === 3 && d.hw.handles === 4, 'door 1370x770 below them; 3 hinges, 3 slide pairs, 4 handles');
+    }
+    // data of the previous version (row of sections) still works
+    d = run(base({ cabs: [mk(9, { W: 1800, tree: null, sections: [{ w: 400, shelves: 1 }, { w: '', shelves: 2 }, { w: '', shelves: 3 }] })] }));
+    ok(!!d && is('ხელით აწყობა (ცარიელი) · ვერტიკალური ტიხარი', 1964, 550, 2) && is('ხელით აწყობა (ცარიელი) · თარო · გ1', 400, 530, 1) &&
+      is('ხელით აწყობა (ცარიელი) · თარო · გ2', 664, 530, 2) && is('ხელით აწყობა (ცარიელი) · თარო · გ3', 664, 530, 3) &&
+      is('ხელით აწყობა (ცარიელი) · უკანა კედელი (2 ნაწილი)', 1996, 898, 2, 'm2') && !cabs[0].sections && cabs[0].tree.dir === 'v',
+      'old "sections" data converts: 400 + 664 + 664, two dividers; 1800 wide back panel split in 2 x 1996x898');
+    d = run(base({ cabs: [mk(9, { tree: { dir: 'v', pos: 5000, a: { shelves: 1 }, b: {} } })] }));
+    ok(!!d && is('ხელით აწყობა (ცარიელი) · თარო · გ1', 1116, 530, 1), 'divider position outside the cabinet is pulled back inside (no error): 1116 mm');
+    d = run(base({ cabs: [mk(9, { H: 1000, tree: { dir: 'h', pos: 1500, a: { shelves: 1 }, b: { dir: 'h', pos: 900, a: {}, b: {} } } })] }));
+    ok(errShown() && $('out').textContent.indexOf('განყოფილება ძალიან პატარაა') > 0, 'nested divider in a compartment that became too small -> one clear message');
+    d = run(base({ cabs: [mk(9, { tree: { shelves: 0, doors: 1, drawers: 3, fh: 20 } })] }));
+    ok(!!d && is('ხელით აწყობა (ცარიელი) · უჯრის ფასადი', 1197, 177, 3), 'drawer height below 80 mm counts as automatic (180 mm), no error');
+    d = run(base({ cabs: [mk(9, { H: 600, tree: { shelves: 0, doors: 1, drawers: 3, fh: '' } })] }));
+    ok(!!d && is('ხელით აწყობა (ცარიელი) · უჯრის ფასადი', 1197, 147, 3) && is('ხელით აწყობა (ცარიელი) · კარი', 147, 1197, 1),
+      'automatic drawer height shrinks (150 mm) so that the door still fits a low cabinet');
+    run(base({ cabs: [mk(9, { H: 600, tree: { drawers: 9 } })] }));
+    ok(errShown() && $('out').textContent.indexOf('ამდენი უჯრა') > 0, 'too many drawers for the height -> error message');
+    run(base({ cabs: [mk(9, { tree: { dir: 'v', pos: 500, a: { doors: 1, drawers: 12, fh: 200 }, b: {} } })] }));
+    ok(errShown() && $('out').textContent.indexOf('განყოფილება 1') > 0, 'error message names the compartment');
+
+    // the editor on the card: select, split, type a position, drag, delete
+    applyState(base({ cabs: [mk(0)] }));
+    var cardE = document.querySelector('#cabs .cab');
+    var pdown = function (elx, dx, dy) {
+      var r = elx.getBoundingClientRect(), o = { bubbles: true, pointerId: 1, button: 0, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 };
+      elx.dispatchEvent(new PointerEvent('pointerdown', o));
+      if (dx || dy) { o.clientX += dx; o.clientY += dy; window.dispatchEvent(new PointerEvent('pointermove', o)); }
+      window.dispatchEvent(new PointerEvent('pointerup', o));
+    };
+    ok(cardE.querySelectorAll('.prev [data-path]').length === 1 && !!cardE.querySelector('[data-split="v"]') && !!cardE.querySelector('[data-cell="shelves"]'),
+      'card shows the drawing and the panel of the only compartment');
+    cardE.querySelector('[data-split="v"]').click();
+    ok(cabs[0].tree.dir === 'v' && cabs[0].tree.pos === 473 && cabs[0].tree.a.doors === 2 && cardE.querySelectorAll('.prev [data-path]').length === 2 &&
+      cardE.querySelectorAll('.prev [data-div]').length === 1, 'vertical divider added in the middle (473 mm); left part keeps the doors');
+    pdown(cardE.querySelector('.prev [data-path="b"]'));
+    ok(cardE.querySelector('.ed-panel').textContent.indexOf('№2') > 0, 'clicking the right compartment selects it');
+    cardE.querySelector('[data-split="h"]').click();
+    ok(cabs[0].tree.b.dir === 'h' && cabs[0].tree.b.pos === 1023 && cardE.querySelectorAll('.prev [data-div]').length === 2, 'horizontal divider added inside the right compartment (1023 mm from the top)');
+    var cs = cardE.querySelector('[data-cell="shelves"]');
+    cs.value = '3'; cs.dispatchEvent(new Event('input', { bubbles: true }));
+    ok(cabs[0].tree.b.a.shelves === '3' && !!cardE.querySelector('[data-cell="shelves"]'), 'typing in the panel changes the selected compartment and keeps the field');
+    pdown(cardE.querySelector('.prev [data-div=""]'));
+    var dp = cardE.querySelector('[data-divpos]');
+    ok(!!dp && dp.value === '473' && cardE.querySelector('[data-divrest]').value === '473', 'clicking a divider shows its distances (473 / 473)');
+    dp.value = '300'; dp.dispatchEvent(new Event('input', { bubbles: true }));
+    ok(cabs[0].tree.pos === 300 && cardE.querySelector('[data-divrest]').value === '646', 'typed distance 300 moves the divider; the other side becomes 646');
+    var svgE = cardE.querySelector('.prev svg'), scE = Math.max(svgE.viewBox.baseVal.width / svgE.getBoundingClientRect().width, svgE.viewBox.baseVal.height / svgE.getBoundingClientRect().height);
+    pdown(cardE.querySelector('.prev [data-div=""]'), 20, 0);
+    ok(cabs[0].tree.pos === 300 + Math.round(20 * scE) && cabs[0].tree.pos > 300, 'dragging the vertical divider 20 px right moves it to ' + cabs[0].tree.pos + ' mm');
+    var hp0 = cabs[0].tree.b.pos;
+    pdown(cardE.querySelector('.prev [data-div="b"]'), 0, -15);
+    ok(cabs[0].tree.b.pos === hp0 + Math.round(-15 * scE) && cabs[0].tree.b.pos < hp0, 'dragging the horizontal divider 15 px up moves it to ' + cabs[0].tree.b.pos + ' mm');
+    pdown(cardE.querySelector('.prev [data-div=""]'), 5000, 0);
+    ok(cabs[0].tree.pos === 964 - 18 - 30, 'a divider cannot be dragged out of its compartment (stops 30 mm from the edge)');
+    cardE.querySelector('[data-divpos]').value = '400'; cardE.querySelector('[data-divpos]').dispatchEvent(new Event('input', { bubbles: true }));
+    calculate(); d = last;
+    ok(!!d && is('გარდერობი · ვერტიკალური ტიხარი', 2064, 580, 1) && is('გარდერობი · ჰორიზონტალური ტიხარი', 546, 580, 1) && is('გარდერობი · თარო · გ2', 546, 560, 3) &&
+      is('გარდერობი · კარი · გ1', 2097, 210, 2), 'the hand-made layout is what gets calculated (divider 546 wide, shelves 546, doors 210)');
+    if (d) valid('hand-made layout');
+    pdown(cardE.querySelector('.prev [data-div="b"]'));
+    cardE.querySelector('[data-deldiv]').click();
+    ok(!cabs[0].tree.b.dir && cabs[0].tree.b.shelves === '3' && cardE.querySelectorAll('.prev [data-div]').length === 1, 'deleting a divider keeps the contents of its first part');
+    save(); applyState(base({})); load();
+    ok(cabs.length === 1 && cabs[0].tree.dir === 'v' && cabs[0].tree.pos === 400 && cabs[0].tree.b.shelves === '3', 'the layout survives save + load');
+
+
+    // D. prices come from the catalog
+    d = run(base({ catalog: cat({ m1: { price: 100 }, m2: { price: 30 } }), cabs: [mk(0), mk(4)], priceSlide: 20, priceHinge: 3, priceHandle: 5, priceCut: 1, priceEdge: 2 }));
+    if (d) {
+      var exp = d.mats[0].n * 100 + d.mats[1].n * 30 + d.cutM * 1 + d.edgeM * 2 + 4 * 20 + 10 * 3 + 6 * 5;
+      ok(Math.abs(exp - d.total) < 1e-6, 'total price = ' + d.total.toFixed(2) + ' (independent sum ' + exp.toFixed(2) + ')');
+      ok($('out').textContent.indexOf(d.total.toFixed(2)) >= 0, 'total price is shown on the page');
+      ok(d.rows.length === 7, 'price table has 7 rows (2 materials, cut, edge, slides, hinges, handles)');
+    } else ok(false, 'price scenario calculates');
+    d = run(base({ cabs: [mk(2, { q: 3 })] }));
+    ok(!!d && d.hw.slides === 9 && d.hw.handles === 9 && d.hw.hinges === 0, 'drawer base x3: 9 slide pairs, 9 handles, 0 hinges');
+    if (d) valid('drawer base x3');
+    d = run(base({ cabs: [mk(1, { drawers: 1 })] }));
+    ok(!!d && is('სამზარეულოს ქვედა · კარი', 537, 597, 1) && is('სამზარეულოს ქვედა · უჯრის ფასადი', 597, 177, 1) && d.hw.hinges === 2,
+      'kitchen base with 1 drawer: door 537x597, drawer front 597x177, 2 hinges');
+    d = run(base({ gap: 0, cabs: [mk(0), mk(4)] }));
+    ok(!!d && is('გარდერობი · კარი', 2100, 500, 2) && is('კომოდი · უჯრის ფასადი', 800, 212, 4) && is('გარდერობი · გვერდი', 2100, 580, 2),
+      'gap 0: doors 2100x500, drawer fronts 800x212, carcass unchanged');
+
+    // E. manual parts only + random stress
+    var seed = 12345;
+    function rnd() { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; }
+    function ri(a, b) { return Math.floor(a + rnd() * (b - a + 1)); }
+    var bad = 0, firstBad = '';
+    for (i = 0; i < 25; i++) {
+      var L = ri(1500, 3000), W = ri(1000, 2100), trim = ri(0, 15), parts = [], n = ri(2, 9), j, st = [];
+      for (j = 0; j < n; j++) {
+        parts.push(part('P' + j, ri(100, Math.min(L - 2 * trim, 1300)), ri(50, Math.min(W - 2 * trim, 800)), ri(1, 8), { rot: rnd() < 0.6, el: ri(0, 2), ew: ri(0, 2) }));
+      }
+      if (i % 2) for (j = 0; j < ri(1, 4); j++) st.push({ id: 's' + j, mat: 'm1', L: ri(300, 1600), W: ri(200, 1200), q: ri(1, 3) });
+      d = run(base({ catalog: cat({ m1: { L: L, W: W } }), stock: st, trim: trim, kerf: ri(0, 5), minOff: ri(0, 200), parts: parts }));
+      var e = d ? verify() : ['no result: ' + $('out').textContent];
+      if (e.length) { bad++; if (!firstBad) firstBad = 'run ' + i + ': ' + e.slice(0, 3).join(' | '); }
+    }
+    ok(!bad, 'random stress: 25 random cut lists (half of them with random stock) valid' + (bad ? ' -> ' + bad + ' bad, ' + firstBad : ''));
+
+    // F. error handling
+    run(base({ cabs: [mk(0, { H: 3000 })] })); ok(errShown(), 'too tall cabinet -> error message, no result');
+    run(base({})); ok(errShown(), 'nothing to cut -> error message');
+    run(base({ cabs: [mk(4, { drawers: 12, fh: 100 })] })); ok(errShown(), 'drawers that do not fit -> error message');
+    run(base({ cabs: [mk(0, { W: 0 })] })); ok(errShown(), 'zero width -> error message');
+    run(base({ catalog: cat({ m1: { L: '' } }), cabs: [mk(0)] })); ok(errShown(), 'material without sheet size -> error message');
+    run(base({ cabs: [mk(0, { mCarc: 'gone' })] })); ok(errShown() && $('out').textContent.indexOf('კორპუსის მასალა') > 0, 'deleted carcass material -> asks to choose a material');
+    run(base({ cabs: [mk(4, { mBottom: '' })] })); ok(errShown(), 'drawers without bottom material -> error message');
+    run(base({ parts: [part('X', 300, 200, 1, { mat: 'nope' })] })); ok(errShown(), 'manual part without material -> error message');
+    d = run(base({ cabs: [mk(0, { mBottom: '', mBox: '' })] })); ok(!!d, 'cabinet without drawers does not need drawer materials');
+
+    // S. stock of leftover pieces
+    d = run(base({ catalog: cat({ m1: { price: 100 } }), stock: [{ id: 's1', mat: 'm1', L: 1000, W: 600, q: 1 }], parts: [part('A', 400, 300, 2)] }));
+    ok(!!d && d.mats[0].n === 0 && d.mats[0].nStock === 1 && d.total === 0 && d.rows[0][1] === 0,
+      'small job fits a stock piece: 0 new sheets, 1 stock piece, price 0');
+    if (d) {
+      valid('job on a stock piece');
+      ok(d.groups[0].sheet.cfg.L === 1000 && d.groups[0].sheet.cfg.trim === 0 && /nashti-1_1000x600\.dxf$/.test(d.groups[0].file) &&
+        !!document.querySelector('#out .sheet.isstock'), 'stock piece drawn with its own size, no edge trim, own DXF name (' + d.groups[0].file + ')');
+      ok(commitOrder() && !stock.some(function (s) { return s.id === 's1'; }) && stock.length > 0 && d.committed,
+        'finishing the order: used piece written off, ' + stock.length + ' leftover(s) added to stock');
+      var areaSt = 0;
+      stock.forEach(function (s) { areaSt += s.L * s.W * s.q; if (s.mat !== 'm1' || Math.min(s.L, s.W) < 100) areaSt = -1e12; });
+      ok(areaSt > 0 && areaSt < 1000 * 600 - 2 * 400 * 300 + 1, 'new stock is made only of real leftovers (' + Math.round(areaSt / 1e4) / 100 + ' m2), all of material m1');
+      var cntSt = stock.length;
+      ok(!commitOrder() && stock.length === cntSt, 'finishing the same order twice changes nothing');
+      render();
+      ok($('out').textContent.indexOf('უკვე განახლებულია') > 0 && $('stockCount').textContent === String(stockTotal()), 'page shows that stock is updated; badge shows the count');
+    }
+    // which leftovers go to stock: only empty rectangles, big ones ticked by default, the user can change the ticks
+    d = run(base({ cabs: [mk(0), mk(4)] }));
+    if (d) {
+      var partSizes = {}, rowsOk = true, small = null, bigRow = null;
+      d.types.forEach(function (t) { partSizes[t.l + 'x' + t.w] = 1; partSizes[t.w + 'x' + t.l] = 1; });
+      d.offRows.forEach(function (o) {
+        if (o.keep !== (Math.min(o.w, o.h) >= 200)) rowsOk = false;
+        if (!o.keep && !small) small = o;
+        if (o.keep && !bigRow) bigRow = o;
+      });
+      ok(rowsOk && !!bigRow, 'leftovers with both sides >= 200 mm are ticked for stock, smaller strips are not (' + d.offRows.length + ' leftovers)');
+      var cb = small ? document.querySelector('#out input[data-off="' + small.key + '"]') : null;
+      if (cb) {
+        cb.checked = true; cb.dispatchEvent(new Event('change', { bubbles: true }));
+        var cb2 = document.querySelector('#out input[data-off="' + bigRow.key + '"]');
+        cb2.checked = false; cb2.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      var expectSt = {}, expN = 0;
+      d.offRows.forEach(function (o) { if (o.keep) { expectSt[o.matId + ' ' + fmt(o.w) + 'x' + fmt(o.h)] = 1; expN += o.n; } });
+      ok(!cb || (d.offRows.filter(function (o) { return o.key === small.key; })[0].keep && !d.offRows.filter(function (o) { return o.key === bigRow.key; })[0].keep),
+        'ticks can be changed by hand' + (cb ? '' : ' (no small leftover in this layout)'));
+      commitOrder();
+      var gotN = 0, onlyTicked = true, noParts = true;
+      stock.forEach(function (s) {
+        gotN += s.q;
+        if (!expectSt[s.mat + ' ' + fmt(s.L) + 'x' + fmt(s.W)]) onlyTicked = false;
+      });
+      // a leftover may share one side with a part, but it must be an empty area: verify() already proved leftovers never overlap parts
+      ok(onlyTicked && gotN === expN, 'stock received exactly the ticked leftovers (' + gotN + ' pieces), nothing else');
+      valid('layout after finishing the order');
+    } else ok(false, 'leftover selection scenario calculates');
+
+    var noSt = run(base({ cabs: [mk(0)] })), nNo = noSt ? noSt.mats[0].n : -1;
+    d = run(base({ cabs: [mk(0)], stock: [{ id: 's1', mat: 'm1', L: 2200, W: 600, q: 2 }, { id: 's2', mat: 'm3', L: 2500, W: 2000, q: 1 }, { id: 's3', mat: 'm1', L: 90, W: 90, q: 5 }] }));
+    ok(!!d && d.mats[0].nStock >= 1 && d.mats[0].nStock <= 2 && d.mats[0].n <= nNo, 'wardrobe with two 2200x600 leftovers: ' + (d ? d.mats[0].nStock : '?') +
+      ' stock piece(s) used, ' + (d ? d.mats[0].n : '?') + ' new sheets (without stock ' + nNo + ')');
+    if (d) {
+      valid('wardrobe with stock');
+      ok(d.mats[0].sheets.every(function (s) { return !s.stock || (s.stock.sid === 's1' && s.cfg.L === 2200); }), 'only fitting pieces of the same material are taken from stock');
+      var s1before = 2, usedSt = d.mats[0].nStock;
+      commitOrder();
+      var s1 = stock.filter(function (s) { return s.id === 's1'; })[0], s3 = stock.filter(function (s) { return s.id === 's3'; })[0], s2 = stock.filter(function (s) { return s.id === 's2'; })[0];
+      ok((s1 ? s1.q : 0) === s1before - usedSt && !!s3 && s3.q === 5 && !!s2 && s2.q === 1, 'write-off counts: used pieces removed, unused and other-material pieces kept');
+    }
+    d = run(base({ useStock: false, stock: [{ id: 's1', mat: 'm1', L: 1000, W: 600, q: 1 }], parts: [part('A', 400, 300, 2)] }));
+    ok(!!d && d.mats[0].n === 1 && d.mats[0].nStock === 0, 'stock switched off -> a new sheet is used');
+    d = run(base({ stock: [{ id: 's1', mat: 'm1', L: 500, W: 400, q: 3 }], parts: [part('A', 400, 300, 5)] }));
+    ok(!!d && d.mats[0].nStock === 3 && d.mats[0].n === 1, 'three identical stock pieces used, the rest goes to a new sheet');
+    if (d) {
+      valid('several identical stock pieces');
+      var gs = d.groups.filter(function (g) { return g.sheet.stock; });
+      ok(gs.length === 1 && gs[0].sheets.length === 3 && /_x3\.dxf$/.test(gs[0].file), 'identical stock layouts are grouped (x3)');
+      // move a piece from the new sheet onto... a new sheet, then drag-style move between stock and new
+      var full = d.groups.filter(function (g) { return !g.sheet.stock; })[0].sheet, onStock = gs[0].sheet;
+      ok(movePiece(onStock, onStock.placed[0], full), 'piece moved by hand from a stock piece to the new sheet');
+      render();
+      ok(d.mats[0].nStock === 2, 'emptied stock piece is no longer used (2 left)');
+      valid('after moving off a stock piece');
+      ok(movePiece(full, full.placed[0], null) && (render(), d.mats[0].n === 2) && d.mats[0].sheets.filter(function (s) { return !s.stock; })[1].cfg.L === 2800,
+        '"new sheet" by hand is a full catalog sheet');
+      valid('after hand-made new sheet');
+    }
+
+    // G. moving by hand
+    d = run(base({ catalog: cat({ m1: { grain: false, price: 100 } }), cabs: [mk(0), mk(4)] }));
+    if (d) {
+      var sh = d.mats[0].sheets[0], p = sh.placed[0], q = sh.placed[1];
+      ok(!overlaps(sh, p, p.x, p.y, p.w, p.h), 'piece does not overlap at its own place');
+      ok(overlaps(sh, p, q.x, q.y, p.w, p.h), 'piece overlaps when put on another piece');
+      var total = 0;
+      d.groups.forEach(function (g) { total += g.sheet.placed.length; });
+      ok(document.querySelectorAll('#out .piece').length === total, 'every piece is drawn (' + total + ')');
+      var moves = 0, before;
+      var ev = function (x, y) { return { bubbles: true, pointerId: 1, button: 0, clientX: x, clientY: y }; };
+      var dragTo = function (el, x, y) {
+        var r = el.getBoundingClientRect();
+        el.dispatchEvent(new PointerEvent('pointerdown', ev(r.left + r.width / 2, r.top + r.height / 2)));
+        el.dispatchEvent(new PointerEvent('pointermove', ev(x, y)));
+        el.dispatchEvent(new PointerEvent('pointerup', ev(x, y)));
+      };
+      for (i = 0; i < 14; i++) {
+        var els = document.querySelectorAll('#out .sheet[data-g="0"] .piece');
+        var el = els[i % els.length], sh0 = d.groups[0].sheet, pp = sh0.placed[+el.getAttribute('data-i')];
+        var sr = document.querySelector('#out .sheet[data-g="0"] svg').getBoundingClientRect();
+        before = pp.x + ',' + pp.y;
+        dragTo(el, sr.left + rnd() * sr.width, sr.top + rnd() * sr.height);
+        if (before !== pp.x + ',' + pp.y) moves++;
+      }
+      valid('after 14 random drags inside a sheet (' + moves + ' accepted, the rest correctly refused)');
+      var done = false;
+      d.groups.forEach(function (g, gi) {
+        if (done) return;
+        var o = offcuts(g.sheet)[0];
+        if (!o) return;
+        g.sheet.placed.forEach(function (q2, qi) {
+          if (done || q2.w > o.w || q2.h > o.h) return;
+          var pel = document.querySelector('#out .sheet[data-g="' + gi + '"] .piece[data-i="' + qi + '"]');
+          var svgr = document.querySelector('#out .sheet[data-g="' + gi + '"] svg').getBoundingClientRect();
+          var sc = g.sheet.cfg.L / svgr.width, pr0 = pel.getBoundingClientRect();
+          dragTo(pel, pr0.left + pr0.width / 2 + (o.x - q2.x) / sc, pr0.top + pr0.height / 2 + (o.y - q2.y) / sc);
+          done = true;
+          ok(Math.abs(q2.x - o.x) < 1 && Math.abs(q2.y - o.y) < 1 && g.sheet.manual === true, 'drag into a free rectangle lands exactly there (snapped)');
+        });
+      });
+      ok(done, 'found a piece and a free rectangle for the in-sheet drag');
+      valid('after drag into a free rectangle');
+
+      var first = document.querySelector('#out .sheet[data-g="0"] .piece'), fr = first.getBoundingClientRect();
+      first.dispatchEvent(new PointerEvent('pointerdown', ev(fr.left + 3, fr.top + 3)));
+      first.dispatchEvent(new PointerEvent('pointerup', ev(fr.left + 3, fr.top + 3)));
+      ok(!!d.sel && document.querySelectorAll('#out .tools').length === 1, 'click selects a piece and shows one toolbar');
+      var sp = d.sel.piece, w0 = sp.w, h0 = sp.h;
+      document.querySelector('#out .tools [data-act="rot"]').click();
+      ok((sp.w === h0 && sp.h === w0) || (sp.w === w0), 'toolbar rotation: ' + (sp.w === h0 ? 'rotated' : 'refused (no room)'));
+      valid('after toolbar rotation');
+      var n0 = d.mats[0].n, total0 = d.total;
+      var mv = document.querySelector('#out .tools [data-act="move"]');
+      mv.value = 'new';
+      mv.dispatchEvent(new Event('change', { bubbles: true }));
+      ok(d.mats[0].n === n0 + 1 && d.sel.sheet.placed.length === 1 && d.sel.sheet.placed[0] === sp, 'toolbar: piece moved to a new sheet (' + n0 + ' -> ' + d.mats[0].n + ' sheets)');
+      ok(d.rows[0][1] === n0 + 1 && Math.abs(d.total - total0 - 100) < 1e-6, 'sheet count and price follow the extra sheet');
+      valid('after move to new sheet');
+      var placedBack = false;
+      mv = document.querySelector('#out .tools [data-act="move"]');
+      ok(!!mv && mv.options.length >= 3, 'toolbar lists the other sheets of the same material');
+      for (i = 1; i < 12 && !placedBack; i++) {
+        mv = document.querySelector('#out .tools [data-act="move"]');
+        if (!mv || i >= mv.options.length - 1) break;
+        mv.value = mv.options[i].value;
+        mv.dispatchEvent(new Event('change', { bubbles: true }));
+        placedBack = d.mats[0].n === n0;
+      }
+      ok(placedBack, 'toolbar: piece moved back, empty sheet removed (' + d.mats[0].n + ' sheets)');
+      valid('after move back');
+
+      var mainGroups = [];
+      d.groups.forEach(function (g, gi) { if (g.mat === 0) mainGroups.push(gi); });
+      if (mainGroups.length >= 2) {
+        var crossed = 0;
+        for (i = 0; i < 10; i++) {
+          var gA = mainGroups[0], gB = mainGroups[mainGroups.length - 1];
+          var from = i % 2 ? gB : gA, to = i % 2 ? gA : gB;
+          var pe = document.querySelectorAll('#out .sheet[data-g="' + from + '"] .piece');
+          var tsv = document.querySelector('#out .sheet[data-g="' + to + '"] svg');
+          if (!pe.length || !tsv) break;
+          tsv.scrollIntoView({ block: 'center' });
+          var cnt = d.groups[to].sheet.placed.length, tr = tsv.getBoundingClientRect();
+          var smallest = pe[0];
+          Array.prototype.forEach.call(pe, function (x) {
+            var a = x.getBoundingClientRect(), b = smallest.getBoundingClientRect();
+            if (a.width * a.height < b.width * b.height) smallest = x;
+          });
+          dragTo(smallest, tr.left + (0.2 + 0.6 * rnd()) * tr.width, tr.top + (0.2 + 0.6 * rnd()) * tr.height);
+          var g2 = d.groups[to];
+          if (g2 && g2.sheet.placed.length === cnt + 1) crossed++;
+        }
+        ok(crossed > 0, 'drag between two drawings: ' + crossed + ' of 10 pieces changed sheet');
+        valid('after dragging between sheets');
+      } else ok(false, 'need two main sheets for the cross-sheet drag test');
+      var hb = d.mats[1].sheets[0];
+      ok(!movePiece(hb, hb.placed[0], d.mats[0].sheets[0]), 'moving to a sheet of another material is refused');
+      var cntAll = 0;
+      d.mats.forEach(function (m) { m.sheets.forEach(function (s) { cntAll += s.placed.length; }); });
+      ok(cntAll === d.count, 'no piece lost or duplicated (' + cntAll + ')');
+      render();
+
+      // DXF export
+      var dxf = buildDxf(), dl = dxf.split('\r\n'), pieces = 0, offs = 0, structOk = dl[dl.length - 1] === '' && (dl.length - 1) % 2 === 0;
+      d.groups.forEach(function (g) { pieces += g.sheet.placed.length; offs += offcuts(g.sheet).length; });
+      for (i = 0; i < dl.length - 1 && structOk; i += 2) if (!/^-?\d+$/.test(dl[i])) structOk = false;
+      ok(structOk, 'DXF: every entry is a (group code, value) pair');
+      ok(/^[\x00-\x7f]*$/.test(dxf) && dxf.indexOf('0\r\nSECTION\r\n2\r\nHEADER') === 0 && /0\r\nENDSEC\r\n0\r\nEOF\r\n$/.test(dxf), 'DXF: pure ASCII, proper start and end');
+      ok(dxf.split('POLYLINE\r\n8\r\nPARTS\r\n').length - 1 === pieces, 'DXF: one closed contour per piece (' + pieces + ')');
+      var g0 = d.groups[0], c0 = g0.sheet.cfg, geomOk = true, chunks = dxf.split('0\r\nPOLYLINE\r\n8\r\nPARTS\r\n').slice(1);
+      g0.sheet.placed.forEach(function (q3, qi) {
+        var vv = chunks[qi].split('0\r\nSEQEND')[0].split('\r\n'), xs = [], ys = [];
+        for (var a = 0; a < vv.length - 1; a += 2) { if (vv[a] === '10') xs.push(+vv[a + 1]); if (vv[a] === '20') ys.push(+vv[a + 1]); }
+        var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
+        if (xs.length !== 4 || Math.abs(x0 - (c0.trim + q3.x)) > 0.01 || Math.abs(x1 - x0 - q3.w) > 0.01 ||
+          Math.abs(y1 - (c0.W - c0.trim - q3.y)) > 0.01 || Math.abs(y1 - y0 - q3.h) > 0.01) geomOk = false;
+      });
+      ok(geomOk, 'DXF: contour coordinates and sizes match the layout of sheet 1');
+      var files = dxfFiles(), names = {}, partsSum = 0, perFileOk = true;
+      files.forEach(function (f, fi) {
+        names[f.name] = 1;
+        var np = f.text.split('POLYLINE\r\n8\r\nPARTS\r\n').length - 1, ns2 = f.text.split('POLYLINE\r\n8\r\nSHEET\r\n').length - 1;
+        partsSum += np;
+        var fl = f.text.split('\r\n'), minX = Infinity, maxX = -Infinity;
+        for (var a = 0; a < fl.length - 1; a += 2) if (fl[a] === '10') { minX = Math.min(minX, +fl[a + 1]); maxX = Math.max(maxX, +fl[a + 1]); }
+        if (ns2 !== 1 || np !== d.groups[fi].sheet.placed.length || minX !== 0 || maxX !== d.groups[fi].sheet.cfg.L ||
+          !/^[a-z0-9._-]+\.dxf$/.test(f.name) || !/0\r\nEOF\r\n$/.test(f.text)) perFileOk = false;
+      });
+      ok(files.length === d.groups.length && Object.keys(names).length === files.length && partsSum === pieces && perFileOk,
+        'DXF: ' + files.length + ' separate files, one sheet each (' + files.map(function (f) { return f.name; }).join(', ') + ')');
+      var txt = buildExport();
+      ok(txt.indexOf('გარდერობი · გვერდი') > 0 && txt.indexOf('სულ') > 0 && txt.split('\r\n').length > 40, 'Excel export contains parts, layout and prices (' +
+        txt.split('\r\n').length + ' lines)');
+    } else ok(false, 'drag scenario calculates');
+
+    // identical sheets: changing one of them splits it off; a grain-locked piece can still be turned by hand
+    d = run(base({ cabs: [mk(6, { q: 6 })] }));
+    if (d) {
+      var gg = d.groups.filter(function (g) { return g.sheets.length > 1; })[0];
+      ok(!!gg, 'six identical cabinets give a group of identical sheets');
+      if (gg) {
+        var ns = gg.sheets.length, shx = gg.sheet, px = shx.placed[shx.placed.length - 1], mm = d.mats[gg.mat], nAll = mm.n;
+        var others = gg.sheets.slice(1), sigOf = function (s) { return JSON.stringify(s.placed); }, sigs = others.map(sigOf);
+        ok(movePiece(shx, px, null), 'piece moved from a grouped sheet to a new sheet');
+        render();
+        ok(mm.n === nAll + 1 && gg.sheets.length === 1 && shx.placed.indexOf(px) < 0, 'one more sheet (' + nAll + ' -> ' + mm.n + '), piece left its sheet');
+        ok(others.every(function (s, k2) { return sigOf(s) === sigs[k2] && !s.manual; }), 'the other ' + (ns - 1) + ' identical sheet(s) are untouched');
+        valid('after splitting a group');
+      }
+      var ms = d.mats[0].sheets[0], side = ms.placed.filter(function (q4) { return !d.types[q4.id].rot && q4.w !== q4.h; })[0];
+      if (side) {
+        var wasW = side.w, wasH = side.h, turnedOk = rotatePiece(ms, side);
+        ok(!turnedOk || (side.w === wasH && side.h === wasW), 'grain-locked piece turned by hand: ' + (turnedOk ? 'rotated to ' + side.w + 'x' + side.h : 'no room on the sheet'));
+        render();
+        valid('after manual rotation of a grain-locked piece');
+      } else ok(false, 'no grain-locked piece found');
+    } else ok(false, 'identical sheets scenario calculates');
+
+    // project report (PDF)
+    d = run(base({ catalog: cat({ m1: { price: 100 } }), cabs: [mk(7), mk(4, { q: 2 })], parts: [part('ცოკოლი', 500, 100, 2)] }));
+    if (d) {
+      d.sel = { sheet: d.groups[0].sheet, piece: d.groups[0].sheet.placed[0] };
+      ok(showReport() && document.body.classList.contains('report'), 'report opens');
+      var rp = $('report'), rtxt = rp.textContent;
+      ok(rp.querySelectorAll('.rp-draw svg').length === 2 && rp.querySelectorAll('.rp-sheet svg').length === d.groups.length,
+        'report: one dimensioned drawing per cabinet (2) and one cutting layout per sheet (' + d.groups.length + ')');
+      ok(rtxt.indexOf('გარდერობი 2 სექციით') > 0 && rtxt.indexOf('კომოდი × 2 ცალი') > 0 && rtxt.indexOf('ცოკოლი') > 0 && rtxt.indexOf('დაჭრის სქემები') > 0 &&
+        rtxt.indexOf(d.total.toFixed(2)) > 0, 'report: cabinets, extra part, cutting section and the total price are present');
+      var dimTexts = Array.prototype.map.call(rp.querySelector('.rp-draw svg').querySelectorAll('text'), function (x) { return x.textContent; });
+      ok(dimTexts.indexOf('1600') >= 0 && dimTexts.indexOf('2100') >= 0 && dimTexts.indexOf('1046×2064') >= 0 && dimTexts.indexOf('500×2064') >= 0,
+        'report drawing shows overall 1600 and 2100 and the inner sizes 1046×2064 and 500×2064');
+      ok(rp.innerHTML.indexOf('stroke="#b4541a" stroke-width="' ) < 0 || rp.querySelectorAll('.rp-sheet rect[stroke="#b4541a"]').length === 0, 'report layouts have no selection highlight');
+      ok(d.sel !== null, 'selection on the page is kept');
+      rp.querySelector('[data-rp="close"]').click();
+      ok(!document.body.classList.contains('report'), 'report closes back to the page');
+    } else ok(false, 'report scenario calculates');
+
+    // I. persistence, migration, tabs and tables
+    var st0 = base({ catalog: cat({ m1: { price: 77, name: 'თეთრი ლამინატი' } }), stock: [{ id: 's9', mat: 'm2', L: 900, W: 500, q: 2 }],
+      cabs: [mk(0), mk(5, { q: 4, mFront: 'm3' })], parts: [part('X', 300, 200, 2, { el: 1, ew: 2, mat: 'm3' })] });
+    applyState(st0); save(); applyState(base({})); load();
+    var back = readState();
+    ok(cabs.length === 2 && String(cabs[1].q) === '4' && cabs[1].mFront === 'm3' && catalog[0].price === 77 && catalog[0].name === 'თეთრი ლამინატი' &&
+      stock.length === 1 && stock[0].L === 900 && back.parts.length === 1 && back.parts[0].mat === 'm3' && back.parts[0].ew === '2', 'catalog, stock, cabinets and parts survive save + load');
+    ok(document.querySelectorAll('#cabs .cab').length === 2 && document.querySelectorAll('#cabs .prev svg').length === 2 &&
+      document.querySelector('#cabs [data-k="mCarc"]').options[0].textContent === 'თეთრი ლამინატი', 'cabinet cards drawn, material lists show catalog names');
+    var mg = migrate({ sheetL: 2440, sheetW: 1830, th: 16, priceSheet: 90, bPrice: 25, dTh: 12, grain: false, kerf: 3, priceHinge: 4,
+      cabs: [{ name: 'ძველი', W: 800, H: 850, D: 450, shelves: 0, doors: 0, drawers: 4, fh: '', top: 'overlay', q: 2, back: 'box', box: 'sep', bottom: 'main' }],
+      parts: [{ name: 'Y', l: 100, w: 50, q: 1, rot: true }] });
+    ok(mg.catalog[0].L === 2440 && mg.catalog[0].price === 90 && mg.catalog[0].grain === false && mg.catalog[2].th === 12 && mg.kerf === 3 && mg.priceHinge === 4 &&
+      mg.cabs[0].mBack === 'm3' && mg.cabs[0].mBox === 'm3' && mg.cabs[0].mBottom === 'm1' && mg.cabs[0].mCarc === 'm1' && mg.parts[0].mat === 'm1',
+      'old saved data converts to the catalog form');
+    d = run(mg);
+    ok(!!d && is('ძველი · უჯრის უკანა კედელი', 800 - 32 - 26 - 24, 162, 8, 'm3'), 'converted data calculates (16 mm body, 12 mm drawer material)');
+
+    applyState(base({}));
+    $('tabs').children[1].click();
+    ok(!$('tab-mats').hidden && $('tab-build').hidden && $('tabs').children[1].className === 'on', 'tab "materials" opens');
+    $('addMat').click();
+    var rowsM = $('matRows').querySelectorAll('tr[data-i]'), lastRow = rowsM[rowsM.length - 1];
+    var setIn = function (root, k, val) { var x = root.querySelector('[data-k="' + k + '"]'); if (x.type === 'checkbox') x.checked = val; else x.value = val; x.dispatchEvent(new Event('input', { bubbles: true })); };
+    setIn(lastRow, 'name', 'MDF თეთრი 19'); setIn(lastRow, 'L', 2440); setIn(lastRow, 'W', 1220); setIn(lastRow, 'th', 19); setIn(lastRow, 'price', 210); setIn(lastRow, 'grain', false);
+    var newM = catalog[catalog.length - 1];
+    ok(catalog.length === 4 && newM.name === 'MDF თეთრი 19' && newM.price === '210' && newM.grain === false && /^m\d+$/.test(newM.id) && newM.id !== 'm1', 'material added and edited in the catalog table');
+    $('tabs').children[2].click();
+    $('addStock').click();
+    var sr2 = $('stockRows').querySelector('tr[data-i]');
+    setIn(sr2, 'mat', newM.id); setIn(sr2, 'L', 900); setIn(sr2, 'W', 400); setIn(sr2, 'q', 2);
+    ok(stock.length === 1 && stock[0].mat === newM.id && stock[0].L === '900' && $('stockCount').textContent === '2', 'stock piece added and edited in the stock table');
+    $('tabs').children[0].click();
+    $('presets').children[4].click();
+    var card = document.querySelector('#cabs .cab');
+    ok(cabs.length === 1 && cabs[0].name === 'კომოდი' && cabs[0].mCarc === 'm1' && cabs[0].mBack === 'm2' && card.querySelector('[data-k="mFront"]').options.length === 4,
+      'preset button adds a cabinet with default materials; the new material is in the lists');
+    var selF = card.querySelector('[data-k="mFront"]');
+    selF.value = newM.id; selF.dispatchEvent(new Event('change', { bubbles: true }));
+    var inp = card.querySelector('[data-cell="drawers"]');
+    inp.value = '5'; inp.dispatchEvent(new Event('input', { bubbles: true }));
+    ok(cabs[0].mFront === newM.id && cabs[0].tree.drawers === '5' && document.querySelector('#cabs .cab-info').textContent.indexOf('სალასკა: 5') > 0, 'choosing a material and editing drawers on the card');
+    calculate(); d = last;
+    ok(!!d && !!mat(newM.id) && mat(newM.id).price === 210 && mat(newM.id).nStock >= 1 && ty('კომოდი · უჯრის ფასადი').matId === newM.id &&
+      ty('კომოდი · უჯრის ფასადი').rot === true, 'calculation uses the new catalog material: price 210, its stock pieces, no grain');
+    if (d) { valid('job with a user-made material'); ok(/^mdf-tetri-19_/.test(d.groups.filter(function (g) { return d.mats[g.mat].id === newM.id; })[0].file), 'DXF name from the material name'); }
+    $('tabs').children[1].click();
+    $('matRows').querySelectorAll('tr[data-i]')[3].querySelector('[data-del]').click();
+    ok(catalog.length === 3 && stock.length === 0, 'deleting a material also removes its stock');
+    $('tabs').children[0].click();
+    calculate();
+    ok(errShown() && $('out').textContent.indexOf('ფასადის მასალა') > 0, 'cabinet that used the deleted material asks for a new choice');
+    document.querySelector('#cabs [data-del]').click();
+    ok(cabs.length === 0, 'delete button removes the cabinet');
+
+    try { localStorage.removeItem(STORE); } catch (e2) {}
+    var pre = document.createElement('pre');
+    pre.id = 'testout';
+    pre.textContent = (fails ? 'RESULT: ' + fails + ' FAILED' : 'RESULT: ALL PASSED') + ' (' + log.length + ' checks)\n' + log.join('\n');
+    document.body.insertBefore(pre, document.body.firstChild);
+    document.title = fails ? 'TEST FAIL' : 'TEST PASS';
+  }
+
+  // =====================================================================
+  if (TEST) {
+    try { selfTest(); } catch (err) {
+      var pre = document.createElement('pre');
+      pre.id = 'testout';
+      pre.textContent = 'RESULT: EXCEPTION ' + (err && err.stack || err);
+      document.body.insertBefore(pre, document.body.firstChild);
+    }
+  } else if (SHOT) {
+    var demo = clone(DEF);
+    demo.catalog = defaultCatalog();
+    demo.catalog[0].price = 145; demo.catalog[1].price = 38; demo.catalog[2].price = 120;
+    catalog = demo.catalog;
+    var c1 = defaultMats(clone(PRESETS[location.search === '?sec' ? 9 : 0])), c2 = defaultMats(clone(PRESETS[4]));
+    if (location.search === '?sec') c1.tree = { dir: 'v', pos: 400, a: { shelves: 3, doors: 1 }, b: { dir: 'h', pos: 600, a: { drawers: 3 }, b: { shelves: 2, doors: 2 } } };
+    c1.q = 1; c2.q = 1; c2.mBox = 'm3';
+    demo.cabs = [c1, c2]; demo.parts = [];
+    demo.stock = [{ id: 's1', mat: 'm1', L: 1200, W: 620, q: 1 }, { id: 's2', mat: 'm2', L: 900, W: 800, q: 1 }];
+    demo.priceSlide = 18; demo.priceHinge = 3.5; demo.priceHandle = 6; demo.priceCut = 1.2; demo.priceEdge = 1.5;
+    applyState(demo);
+    calculate();
+    if (location.search === '?mats') showTab('mats');
+    if (location.search === '?stock') showTab('stock');
+    if (location.search === '?report') {
+      c1 = defaultMats(clone(PRESETS[9])); c1.q = 1; c1.name = 'გარდერობი (ნიმუში)';
+      c1.tree = { dir: 'v', pos: 400, a: { shelves: 3, doors: 1 }, b: { dir: 'h', pos: 600, a: { drawers: 3 }, b: { shelves: 2, doors: 2 } } };
+      demo.cabs = [c1]; demo.stock = [];
+      applyState(demo); calculate(); showReport();
+    }
+    if (location.search === '?commit') {
+      var dbg = document.createElement('pre');
+      dbg.id = 'dbgout'; dbg.style.display = 'none';
+      var before = JSON.stringify(last.offRows.map(function (o) { return o.mat + ' ' + o.w + 'x' + o.h + ' x' + o.n; }));
+      commitOrder();
+      dbg.textContent = 'LEFTOVER TABLE: ' + before + '\nSTOCK AFTER: ' + JSON.stringify(stock.map(function (s) { return matById(s.mat).name + ' ' + s.L + 'x' + s.W + ' x' + s.q; })) +
+        '\nPART SIZES: ' + JSON.stringify(last.types.map(function (t) { return t.l + 'x' + t.w; }));
+      document.body.appendChild(dbg);
+    }
+  } else if (location.hash === '#probe') {
+    // walks through hand-building a cabinet the way a user would and records every message shown
+    var plog = [], perr = [];
+    window.onerror = function (m, s, l) { perr.push(m + ' @' + l); };
+    window.alert = function (m) { plog.push('ALERT: ' + m); };
+    STORE = 'dachra-probe';
+    try { localStorage.removeItem(STORE); } catch (e9) {}
+    load();
+    var note = function (step) {
+      var infos = Array.prototype.map.call(document.querySelectorAll('#cabs .cab-info'), function (x) { return (x.className.indexOf('bad') >= 0 ? '[RED] ' : '') + x.textContent; });
+      plog.push(step + ' -> ' + infos[infos.length - 1]);
+    };
+    var cardP = function () { var cs = document.querySelectorAll('#cabs .cab'); return cs[cs.length - 1]; };
+    var clickCell = function (path) {
+      var x = cardP().querySelector('.prev [data-path="' + path + '"]'), r = x.getBoundingClientRect(), o = { bubbles: true, pointerId: 1, button: 0, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 };
+      x.dispatchEvent(new PointerEvent('pointerdown', o)); window.dispatchEvent(new PointerEvent('pointerup', o));
+    };
+    var setCell = function (k, v) { var x = cardP().querySelector('[data-cell="' + k + '"]'); x.value = v; x.dispatchEvent(new Event(x.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true })); };
+    try {
+      $('presets').children[9].click(); note('added empty cabinet');
+      cardP().querySelector('[data-split="v"]').click(); note('vertical divider');
+      cardP().querySelector('[data-split="h"]').click(); note('horizontal divider in the left part');
+      setCell('drawers', 2); note('2 drawers in compartment 1');
+      setCell('doors', 1); note('+1 door in compartment 1');
+      clickCell('ab'); setCell('shelves', 3); setCell('doors', 1); note('compartment 2: 3 shelves, 1 door');
+      clickCell('b'); cardP().querySelector('[data-split="h"]').click(); note('horizontal divider in the right part');
+      setCell('drawers', 4); note('4 drawers in compartment 3');
+      clickCell('bb'); cardP().querySelector('[data-split="v"]').click(); note('vertical divider in the lower right part');
+      setCell('doors', 2); note('2 doors in a narrow compartment');
+      clickCell('bbb'); setCell('drawers', 3); note('3 drawers in the last compartment');
+      calculate();
+      plog.push('CALC -> ' + (last ? 'ok: ' + last.mats.map(function (m) { return m.name + ' ' + m.n; }).join(', ') : 'ERRORS:\n' + $('out').textContent));
+      if (last) plog.push('PARTS: ' + last.types.map(function (t) { return t.name.replace(/^.*? · /, '') + ' ' + t.l + 'x' + t.w + ' x' + t.q; }).join(' | '));
+    } catch (eP) { perr.push('EXCEPTION ' + (eP && eP.stack || eP)); }
+    // fuzz: many random editor actions on fresh cabinets; collect every distinct message and every failed calculation
+    var seen = {}, fz = 0, calcOk = 0, calcErr = 0, bad = 0, seedP = 777;
+    var rr = function () { seedP = (seedP * 1103515245 + 12345) % 2147483648; return seedP / 2147483648; };
+    var pick = function (list) { return list[Math.floor(rr() * list.length)]; };
+    try {
+      for (var round = 0; round < 25; round++) {
+        cabs = []; renderCabs();
+        $('presets').children[Math.floor(rr() * 10)].click();
+        for (var stp = 0; stp < 30; stp++) {
+          var cd = cardP(), act = rr(), cellsP = cd.querySelectorAll('.prev [data-path]'), divsP = cd.querySelectorAll('.prev [data-div]');
+          if (!cellsP.length) break;
+          if (act < 0.25) { clickCell(pick(cellsP).getAttribute('data-path')); var sb = cardP().querySelector('[data-split="' + (rr() < 0.5 ? 'v' : 'h') + '"]'); if (sb) sb.click(); }
+          else if (act < 0.6) {
+            clickCell(pick(cellsP).getAttribute('data-path'));
+            setCell(pick(['shelves', 'drawers', 'doors', 'fh']), pick(['', 0, 1, 2, 3, 5, 120, 250]));
+          } else if (act < 0.8 && divsP.length) {
+            var dq = pick(divsP), rq = dq.getBoundingClientRect(), oq = { bubbles: true, pointerId: 1, button: 0, clientX: rq.left + rq.width / 2, clientY: rq.top + rq.height / 2 };
+            dq.dispatchEvent(new PointerEvent('pointerdown', oq));
+            oq.clientX += (rr() - 0.5) * 200; oq.clientY += (rr() - 0.5) * 200;
+            window.dispatchEvent(new PointerEvent('pointermove', oq)); window.dispatchEvent(new PointerEvent('pointerup', oq));
+            if (rr() < 0.3) { var dpp = cardP().querySelector('[data-divpos]'); dpp.value = pick(['', 0, 10, 200, 450, 900, 5000]); dpp.dispatchEvent(new Event('input', { bubbles: true })); }
+            else if (rr() < 0.2) cardP().querySelector('[data-deldiv]').click();
+          } else {
+            var kq = pick(['W', 'H', 'D']), xq = cardP().querySelector('[data-k="' + kq + '"]');
+            xq.value = pick([300, 450, 600, 900, 1200, 1800, 2400]); xq.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+          fz++;
+          var inf = cardP().querySelector('.cab-info');
+          if (inf.className.indexOf('bad') >= 0) seen[inf.textContent] = (seen[inf.textContent] || 0) + 1;
+        }
+        calculate();
+        if (last) { calcOk++; var ve = verify(); if (ve.length) { bad++; perr.push('INVALID LAYOUT: ' + ve.slice(0, 2).join(' | ')); } }
+        else { calcErr++; var tx = $('out').textContent; seen['CALC: ' + tx] = (seen['CALC: ' + tx] || 0) + 1; }
+      }
+    } catch (eF) { perr.push('FUZZ EXCEPTION ' + (eF && eF.stack || eF)); }
+    plog.push('FUZZ: ' + fz + ' actions, calculations ok ' + calcOk + ', with errors ' + calcErr + ', invalid layouts ' + bad);
+    Object.keys(seen).forEach(function (k) { plog.push('  x' + seen[k] + '  ' + k); });
+    var pp = document.createElement('pre');
+    pp.id = 'probeout'; pp.textContent = plog.join('\n') + '\nJS ERRORS: ' + (perr.length ? perr.join('\n') : 'none');
+    document.body.appendChild(pp);
+  } else {
+    load();
+  }
+})();
+</script>
+</body>
+</html>
